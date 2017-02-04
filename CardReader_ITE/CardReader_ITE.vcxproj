@@ -77,9 +77,13 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(Configuration)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)$(PlatformTarget)\$(Configuration)\</OutDir>
+    <IntDir>$(PlatformTarget)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -127,6 +131,10 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <ModuleDefinitionFile>winscard.def</ModuleDefinitionFile>
     </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(SolutionDir)package\$(PlatformTarget)"
+copy /y "$(TargetPath)" "$(SolutionDir)package\$(PlatformTarget)\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -146,6 +154,10 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <ModuleDefinitionFile>winscard.def</ModuleDefinitionFile>
     </Link>
+    <PostBuildEvent>
+      <Command>mkdir "$(SolutionDir)package\$(PlatformTarget)"
+copy /y "$(TargetPath)" "$(SolutionDir)package\$(PlatformTarget)\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="card.c" />
@@ -157,6 +169,7 @@
     <ClCompile Include="winscard.c" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\package\CardReader_ITE.ini" />
     <None Include="winscard.def" />
   </ItemGroup>
   <ItemGroup>
