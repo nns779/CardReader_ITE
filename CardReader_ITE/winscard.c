@@ -50,7 +50,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		friendlyNameLen = GetPrivateProfileStringW(L"Setting", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
 
 		if (memInit() == false) return FALSE;
-		DisableThreadLibraryCalls(hinstDLL);
 
 		break;
 	}
