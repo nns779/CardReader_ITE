@@ -17,13 +17,15 @@ struct card_info
 	uint8_t f;		// TA1 (MHz)
 	uint16_t Fi;	// TA1
 	uint8_t Di;		// TA1
-	uint8_t P;		// TB1/TB2 (not used)
+	uint8_t P;		// TB1,TB2 (not used)
 	uint8_t II;		// TB1 (not used)
-	uint8_t N;		// TC1 (reserved)
+	uint8_t N;		// TC1
 	uint32_t GT;	// TC1 (reserved)
 
 	struct {
 		bool b;
+		uint8_t WI;
+		uint32_t WT;
 	} T0;
 
 	struct {
@@ -33,7 +35,7 @@ struct card_info
 		uint8_t IFSD;
 		uint8_t CWI;
 		uint8_t BWI;
-		uint8_t EDC;	// (not used)
+		uint8_t EDC;	// (reserved)
 		uint32_t CWT;
 		uint32_t BWT;
 		uint32_t BGT;

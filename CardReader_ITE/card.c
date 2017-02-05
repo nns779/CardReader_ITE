@@ -14,6 +14,9 @@ bool card_init(struct card_info *const card)
 	card->etu = 372 / 4;
 	card->f = 4;
 	card->Fi = 372;
+	card->Di = 1;
+
+	card->T0.WI = 10;
 
 	card->T1.IFSC = 32;
 	card->T1.IFSD = 32;
@@ -39,14 +42,64 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 	case 1:
 		switch (v & 0xf0)
 		{
+		case 0x00:
+			card->Fi = 372;
+			card->f = 4;
+			break;
+
 		case 0x10:
 			card->Fi = 372;
 			card->f = 5;
 			break;
 
+		case 0x20:
+			card->Fi = 558;
+			card->f = 6;
+			break;
+
 		case 0x30:
 			card->Fi = 744;
 			card->f = 8;
+			break;
+
+		case 0x40:
+			card->Fi = 1116;
+			card->f = 12;
+			break;
+
+		case 0x50:
+			card->Fi = 1488;
+			card->f = 16;
+			break;
+
+		case 0x60:
+			card->Fi = 1860;
+			card->f = 20;
+			break;
+
+		case 0x90:
+			card->Fi = 512;
+			card->f = 5;
+			break;
+
+		case 0xA0:
+			card->Fi = 768;
+			card->f = 7;	// 7.5
+			break;
+
+		case 0xB0:
+			card->Fi = 1024;
+			card->f = 10;
+			break;
+
+		case 0xC0:
+			card->Fi = 1536;
+			card->f = 15;
+			break;
+
+		case 0xD0:
+			card->Fi = 2048;
+			card->f = 20;
 			break;
 
 		default:
@@ -55,6 +108,10 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 		}
 
 		switch (v & 0x0f) {
+		case 0x01:
+			card->Di = 1;
+			break;
+
 		case 0x02:
 			card->Di = 2;
 			break;
@@ -67,6 +124,26 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 			card->Di = 8;
 			break;
 
+		case 0x05:
+			card->Di = 16;
+			break;
+
+		case 0x06:
+			card->Di = 32;
+			break;
+
+		case 0x07:
+			card->Di = 64;
+			break;
+
+		case 0x08:
+			card->Di = 12;
+			break;
+
+		case 0x09:
+			card->Di = 20;
+			break;
+
 		default:
 			internal_err(L"_card_TA(1): not supported card 2");
 			return false;
@@ -75,16 +152,22 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 		break;
 
 	case 2:
-		if ((v & 0x0f) != 1) {
-			internal_err(L"_card_TA(2): not supported card");
-		}
-		else {
+		switch ((v & 0x0f)) {
+		case 1:
 			card->T1.b = true;
+			break;
+
+		default:
+			internal_err(L"_card_TA(2): not supported card");
+			return false;
 		}
 		break;
 
 	default:
 		if (t == 1) {
+			if (v != 0) {
+				internal_err(L"_card_TA(i): not supported card");
+			}
 			card->T1.IFSC = v;
 		}
 		break;
@@ -121,6 +204,17 @@ static bool _card_TC(struct card_info *const card, const int i, const int t, con
 	switch (i)
 	{
 	case 1:
+		card->N = v;
+		break;
+		
+	case 2:
+		card->T0.WI = v;
+		break;
+
+	default:
+		if (t == 1) {
+			card->T1.EDC = v;
+		}
 		break;
 	}
 
@@ -240,6 +334,10 @@ bool card_parseATR(struct card_info *const card)
 
 	card->etu = (card->Fi / (card->Di * card->f));
 	dbg(L"card_parseATR: etu: %d", card->etu);
+
+	if (card->T0.b == true) {
+		card->T0.WT = (card->T0.WI * 960 * card->Di);
+	}
 
 	if (card->T1.b == true) {
 		card->T1.BWT = (2 * card->T1.BWI * 960 * 372 / card->f) + (11 * card->etu);

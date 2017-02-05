@@ -22,7 +22,8 @@ static const wchar_t mutex_name[] = L"itecard_db_shmem_mutex %s {6635D7C8-6CDE-4
 static const wchar_t shmem_name[] = L"itecard_db_shmem %s {22E92268-2BD0-4A7F-B5ED-4D81473CF3FE}";
 
 #define ITECARD_DB_SIGNATURE_0	0xA1BF436E
-#define ITECARD_DB_SIGNATURE	0xC3EE7A80
+#define ITECARD_DB_SIGNATURE_1	0xC3EE7A80
+#define ITECARD_DB_SIGNATURE	0x83AA4B29
 
 #define itecard_db_check_signature(card) ((card)->signature == ITECARD_DB_SIGNATURE)
 
