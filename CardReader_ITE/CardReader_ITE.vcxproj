@@ -132,8 +132,7 @@
       <ModuleDefinitionFile>winscard.def</ModuleDefinitionFile>
     </Link>
     <PostBuildEvent>
-      <Command>mkdir "$(SolutionDir)package\$(PlatformTarget)"
-copy /y "$(TargetPath)" "$(SolutionDir)package\$(PlatformTarget)\"</Command>
+      <Command>xcopy /y "$(TargetPath)" "$(SolutionDir)package\$(PlatformTarget)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -155,8 +154,7 @@ copy /y "$(TargetPath)" "$(SolutionDir)package\$(PlatformTarget)\"</Command>
       <ModuleDefinitionFile>winscard.def</ModuleDefinitionFile>
     </Link>
     <PostBuildEvent>
-      <Command>mkdir "$(SolutionDir)package\$(PlatformTarget)"
-copy /y "$(TargetPath)" "$(SolutionDir)package\$(PlatformTarget)\"</Command>
+      <Command>xcopy /y "$(TargetPath)" "$(SolutionDir)package\$(PlatformTarget)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
