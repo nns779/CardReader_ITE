@@ -17,6 +17,11 @@ static uint32_t readerNameLenA = 0;
 static wchar_t friendlyName[128] = { 0 };
 static uint32_t friendlyNameLen = 0;
 
+#define _scard_READER_LIST_SIZE_A (((readerNameLenA) + 12) * 8 + 1)
+#define _scard_READER_LIST_SIZE_W (((readerNameLenW) + 12) * 8 + 1)
+#define _scard_READER_NAME_SIZE_A ((readerNameLenA) + 12 + 1)
+#define _scard_READER_NAME_SIZE_W ((readerNameLenW) + 12 + 1)
+
 const SCARD_IO_REQUEST _g_rgSCardT1Pci = { SCARD_PROTOCOL_T1, sizeof(SCARD_IO_REQUEST) };
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -45,7 +50,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		friendlyNameLen = GetPrivateProfileStringW(L"Setting", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
 
 		if (memInit() == false) return FALSE;
-		DisableThreadLibraryCalls(hinstDLL);
 
 		break;
 	}
@@ -435,14 +439,17 @@ int _scardListReadersCallbackA(struct itecard_devlist *const devlist, const uint
 	char name[256];
 	uint32_t name_len;
 
-	sprintf_s(name, readerNameLenA + 12, "%s %d", readerNameA, id);
+	sprintf_s(name, _scard_READER_NAME_SIZE_A - 1, "%s %d", readerNameA, id);
 	name_len = strLen(name) + 1;
 
-	if (d->len + name_len > d->size) {
-		return 0;
+	if (d->list != NULL)
+	{
+		if (d->len + name_len > d->size) {
+			return 0;
+		}
+		memcpy(d->list + d->len, name, name_len * sizeof(char));
 	}
 
-	memcpy(d->list + d->len, name, name_len * sizeof(char));
 	d->len += name_len;
 
 	return 1;
@@ -457,34 +464,40 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 	if (!itecard_devlist_check(dl))
 		return SCARD_E_INVALID_HANDLE;
 
-	if (mszReaders == NULL || pcchReaders == NULL)
+	if (pcchReaders == NULL)
 		return SCARD_E_INVALID_PARAMETER;
 
 	bool auto_alloc = false;
 	struct _scardListReadersDataA d;
 
-	if (*pcchReaders == SCARD_AUTOALLOCATE)
-	{
-		auto_alloc = true;
-
-		d.list = memAlloc(((readerNameLenA + 12) * 8 + 1) * sizeof(wchar_t));
-		if (d.list == NULL) {
-			internal_err(L"SCardListReadersA(ITE): memAlloc failed");
-			*pcchReaders = 0;
-			return SCARD_E_NO_MEMORY;
-		}
-
-		d.size = (readerNameLenA + 12) * 8 + 1;
-	}
-	else {
-		if (*pcchReaders < (readerNameLenA + 12) * 8 + 1)
-			return SCARD_E_INSUFFICIENT_BUFFER;
-
-		d.list = mszReaders;
-		d.size = *pcchReaders;
-	}
-
+	d.size = 0;
 	d.len = 0;
+	d.list = NULL;
+
+	if (mszReaders != NULL)
+	{
+		if (*pcchReaders == SCARD_AUTOALLOCATE)
+		{
+			auto_alloc = true;
+
+			d.list = memAlloc(_scard_READER_LIST_SIZE_A * sizeof(char));
+			if (d.list == NULL) {
+				internal_err(L"SCardListReadersA(ITE): memAlloc failed");
+				*pcchReaders = 0;
+				return SCARD_E_NO_MEMORY;
+			}
+
+			d.size = _scard_READER_LIST_SIZE_A;
+		}
+		else if (*pcchReaders < _scard_READER_LIST_SIZE_A) {
+			*pcchReaders = _scard_READER_LIST_SIZE_A;
+			return SCARD_E_INSUFFICIENT_BUFFER;
+		}
+		else {
+			d.list = mszReaders;
+			d.size = *pcchReaders;
+		}
+	}
 
 	itecard_status_t ret;
 	LONG r;
@@ -496,13 +509,19 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 		else {
-			d.list[d.len] = '\0';
+			if (d.list != NULL)
+			{
+				d.list[d.len] = '\0';
 
-			if (auto_alloc == true) {
-				*((LPSTR *)mszReaders) = d.list;
+				if (auto_alloc == true) {
+					*((LPSTR *)mszReaders) = d.list;
+				}
+
+				*pcchReaders = d.len + 1;
 			}
-
-			*pcchReaders = d.len + 1;
+			else {
+				*pcchReaders = _scard_READER_LIST_SIZE_A;
+			}
 
 			r = SCARD_S_SUCCESS;
 		}
@@ -537,14 +556,17 @@ int _scardListReadersCallbackW(struct itecard_devlist *const devlist, const uint
 	wchar_t name[256];
 	uint32_t name_len;
 
-	swprintf_s(name, readerNameLenW + 12, L"%s %d", readerNameW, id);
+	swprintf_s(name, _scard_READER_NAME_SIZE_W - 1, L"%s %d", readerNameW, id);
 	name_len = wstrLen(name) + 1;
 
-	if (d->len + name_len > d->size) {
-		return 0;
+	if (d->list != NULL)
+	{
+		if (d->len + name_len > d->size) {
+			return 0;
+		}
+		memcpy(d->list + d->len, name, name_len * sizeof(wchar_t));
 	}
 
-	memcpy(d->list + d->len, name, name_len * sizeof(wchar_t));
 	d->len += name_len;
 
 	return 1;
@@ -559,34 +581,40 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 	if (!itecard_devlist_check(dl))
 		return SCARD_E_INVALID_HANDLE;
 
-	if (mszReaders == NULL || pcchReaders == NULL)
+	if (pcchReaders == NULL)
 		return SCARD_E_INVALID_PARAMETER;
 
 	bool auto_alloc = false;
 	struct _scardListReadersDataW d;
 
-	if (*pcchReaders == SCARD_AUTOALLOCATE)
-	{
-		auto_alloc = true;
-
-		d.list = memAlloc(((readerNameLenW + 12) * 8 + 1) * sizeof(wchar_t));
-		if (d.list == NULL) {
-			internal_err(L"SCardListReadersW(ITE): memAlloc failed");
-			*pcchReaders = 0;
-			return SCARD_E_NO_MEMORY;
-		}
-
-		d.size = (readerNameLenW + 12) * 8 + 1;
-	}
-	else {
-		if (*pcchReaders < (readerNameLenW + 12) * 8 + 1)
-			return SCARD_E_INSUFFICIENT_BUFFER;
-
-		d.list = mszReaders;
-		d.size = *pcchReaders;
-	}
-
+	d.size = 0;
 	d.len = 0;
+	d.list = NULL;
+
+	if (mszReaders != NULL)
+	{
+		if (*pcchReaders == SCARD_AUTOALLOCATE)
+		{
+			auto_alloc = true;
+
+			d.list = memAlloc(_scard_READER_LIST_SIZE_W * sizeof(wchar_t));
+			if (d.list == NULL) {
+				internal_err(L"SCardListReadersW(ITE): memAlloc failed");
+				*pcchReaders = 0;
+				return SCARD_E_NO_MEMORY;
+			}
+
+			d.size = _scard_READER_LIST_SIZE_W;
+		}
+		else if (*pcchReaders < _scard_READER_LIST_SIZE_W) {
+			*pcchReaders = _scard_READER_LIST_SIZE_W;
+			return SCARD_E_INSUFFICIENT_BUFFER;
+		}
+		else {
+			d.list = mszReaders;
+			d.size = *pcchReaders;
+		}
+	}
 
 	itecard_status_t ret;
 	LONG r;
@@ -598,13 +626,19 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 		else {
-			d.list[d.len] = L'\0';
+			if (d.list != NULL)
+			{
+				d.list[d.len] = L'\0';
 
-			if (auto_alloc == true) {
-				*((LPWSTR *)mszReaders) = d.list;
+				if (auto_alloc == true) {
+					*((LPWSTR *)mszReaders) = d.list;
+				}
+
+				*pcchReaders = d.len + 1;
 			}
-
-			*pcchReaders = d.len + 1;
+			else {
+				*pcchReaders = _scard_READER_LIST_SIZE_W;
+			}
 
 			r = SCARD_S_SUCCESS;
 		}
@@ -735,7 +769,7 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 			return SCARD_E_INVALID_PARAMETER;
 
 		if (*pcchReaderLen == SCARD_AUTOALLOCATE) {
-			name = memAlloc((readerNameLenA + 12 + 1) * sizeof(char));
+			name = memAlloc(_scard_READER_NAME_SIZE_A * sizeof(char));
 			if (name == NULL) {
 				*((LPSTR*)szReaderName) = NULL;
 				return SCARD_E_NO_MEMORY;
@@ -745,13 +779,13 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 			auto_alloc = true;
 		}
 		else {
-			if (*pcchReaderLen < (readerNameLenA + 12 + 1))
+			if (*pcchReaderLen < _scard_READER_NAME_SIZE_A)
 				return SCARD_E_INSUFFICIENT_BUFFER;
 
 			name = szReaderName;
 		}
 
-		sprintf_s(name, (readerNameLenA + 12 + 1), "%s %d", readerNameA, ((struct itecard_handle *)hCard)->id);
+		sprintf_s(name, _scard_READER_NAME_SIZE_A, "%s %d", readerNameA, ((struct itecard_handle *)hCard)->id);
 		*pcchReaderLen = strLen(name) + 2;
 
 		name[*pcchReaderLen - 1] = '\0';
@@ -787,7 +821,7 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 
 		if (*pcchReaderLen == SCARD_AUTOALLOCATE)
 		{
-			name = memAlloc((readerNameLenW + 12 + 1) * sizeof(wchar_t));
+			name = memAlloc(_scard_READER_NAME_SIZE_W * sizeof(wchar_t));
 			if (name == NULL) {
 				*((LPWSTR *)szReaderName) = NULL;
 				return SCARD_E_NO_MEMORY;
@@ -797,13 +831,13 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 			auto_alloc = true;
 		}
 		else {
-			if (*pcchReaderLen < (readerNameLenW + 12 + 1))
+			if (*pcchReaderLen < _scard_READER_NAME_SIZE_W)
 				return SCARD_E_INSUFFICIENT_BUFFER;
 
 			name = szReaderName;
 		}
 
-		swprintf_s(name, (readerNameLenW + 12 + 1), L"%s %d", readerNameW, ((struct itecard_handle *)hCard)->id);
+		swprintf_s(name, _scard_READER_NAME_SIZE_W, L"%s %d", readerNameW, ((struct itecard_handle *)hCard)->id);
 		*pcchReaderLen = wstrLen(name) + 2;
 
 		name[*pcchReaderLen - 1] = L'\0';

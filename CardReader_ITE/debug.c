@@ -7,6 +7,7 @@
 
 void dbg_wprintf(const wchar_t *const format, ...)
 {
+#ifdef _DEBUG
 	va_list args;
 	wchar_t buf[0x100];
 
@@ -14,10 +15,12 @@ void dbg_wprintf(const wchar_t *const format, ...)
 	vswprintf_s(buf, 0x100, format, args);
 	OutputDebugStringW(buf);
 	va_end(args);
+#endif
 }
 
 void dbg_printf(const char *const format, ...)
 {
+#ifdef _DEBUG
 	va_list args;
 	char buf[0x100];
 
@@ -25,10 +28,12 @@ void dbg_printf(const char *const format, ...)
 	vsprintf_s(buf, 0x100, format, args);
 	OutputDebugStringA(buf);
 	va_end(args);
+#endif
 }
 
 void win32_err(const wchar_t *const str)
 {
+#ifdef _DEBUG
 	DWORD e = GetLastError();
 	void *buf = NULL;
 
@@ -39,4 +44,5 @@ void win32_err(const wchar_t *const str)
 	else {
 		dbg_wprintf(L"%s: %08X\n", str, e);
 	}
+#endif
 }

@@ -55,7 +55,7 @@ bool ite_open(ite_dev *const dev, const wchar_t *const path)
 	HANDLE device;
 
 	if (dev->dev != INVALID_HANDLE_VALUE) {
-		dbg_wprintf(L"ite_open: already be opened");
+		dbg(L"ite_open: already be opened");
 		return false;
 	}
 

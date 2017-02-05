@@ -165,9 +165,6 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 
 	default:
 		if (t == 1) {
-			if (v != 0) {
-				internal_err(L"_card_TA(i): not supported card");
-			}
 			card->T1.IFSC = v;
 		}
 		break;
