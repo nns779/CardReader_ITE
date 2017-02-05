@@ -512,9 +512,12 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 				if (auto_alloc == true) {
 					*((LPSTR *)mszReaders) = d.list;
 				}
-			}
 
-			*pcchReaders = d.len + 1;
+				*pcchReaders = d.len + 1;
+			}
+			else {
+				*pcchReaders = (readerNameLenA + 12) * 8 + 1;
+			}
 
 			r = SCARD_S_SUCCESS;
 		}
@@ -626,9 +629,12 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 				if (auto_alloc == true) {
 					*((LPWSTR *)mszReaders) = d.list;
 				}
-			}
 
-			*pcchReaders = d.len + 1;
+				*pcchReaders = d.len + 1;
+			}
+			else {
+				*pcchReaders = (readerNameLenW + 12) * 8 + 1;
+			}
 
 			r = SCARD_S_SUCCESS;
 		}
