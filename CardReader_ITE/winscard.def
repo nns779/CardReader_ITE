@@ -1,0 +1,17 @@
+LIBRARY
+EXPORTS
+	SCardConnectA					@10
+	SCardConnectW					@11
+	SCardDisconnect					@13
+	SCardEstablishContext			@15
+	SCardFreeMemory					@22
+	SCardGetStatusChangeA			@28
+	SCardGetStatusChangeW			@29
+	SCardIsValidContext				@37
+	SCardListReadersA				@44
+	SCardListReadersW				@45
+	SCardReleaseContext				@53
+	SCardStatusA					@61
+	SCardStatusW					@62
+	SCardTransmit					@63
+	g_rgSCardT1Pci=_g_rgSCardT1Pci	@68		DATA
