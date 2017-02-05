@@ -438,11 +438,14 @@ int _scardListReadersCallbackA(struct itecard_devlist *const devlist, const uint
 	sprintf_s(name, readerNameLenA + 12, "%s %d", readerNameA, id);
 	name_len = strLen(name) + 1;
 
-	if (d->len + name_len > d->size) {
-		return 0;
+	if (d->list != NULL)
+	{
+		if (d->len + name_len > d->size) {
+			return 0;
+		}
+		memcpy(d->list + d->len, name, name_len * sizeof(char));
 	}
 
-	memcpy(d->list + d->len, name, name_len * sizeof(char));
 	d->len += name_len;
 
 	return 1;
@@ -457,34 +460,40 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 	if (!itecard_devlist_check(dl))
 		return SCARD_E_INVALID_HANDLE;
 
-	if (mszReaders == NULL || pcchReaders == NULL)
+	if (pcchReaders == NULL)
 		return SCARD_E_INVALID_PARAMETER;
 
 	bool auto_alloc = false;
 	struct _scardListReadersDataA d;
 
-	if (*pcchReaders == SCARD_AUTOALLOCATE)
-	{
-		auto_alloc = true;
-
-		d.list = memAlloc(((readerNameLenA + 12) * 8 + 1) * sizeof(wchar_t));
-		if (d.list == NULL) {
-			internal_err(L"SCardListReadersA(ITE): memAlloc failed");
-			*pcchReaders = 0;
-			return SCARD_E_NO_MEMORY;
-		}
-
-		d.size = (readerNameLenA + 12) * 8 + 1;
-	}
-	else {
-		if (*pcchReaders < (readerNameLenA + 12) * 8 + 1)
-			return SCARD_E_INSUFFICIENT_BUFFER;
-
-		d.list = mszReaders;
-		d.size = *pcchReaders;
-	}
-
+	d.size = 0;
 	d.len = 0;
+	d.list = NULL;
+
+	if (mszReaders != NULL)
+	{
+		if (*pcchReaders == SCARD_AUTOALLOCATE)
+		{
+			auto_alloc = true;
+
+			d.list = memAlloc(((readerNameLenA + 12) * 8 + 1) * sizeof(char));
+			if (d.list == NULL) {
+				internal_err(L"SCardListReadersA(ITE): memAlloc failed");
+				*pcchReaders = 0;
+				return SCARD_E_NO_MEMORY;
+			}
+
+			d.size = (readerNameLenA + 12) * 8 + 1;
+		}
+		else if (*pcchReaders < (readerNameLenA + 12) * 8 + 1) {
+			*pcchReaders = (readerNameLenA + 12) * 8 + 1;
+			return SCARD_E_INSUFFICIENT_BUFFER;
+		}
+		else {
+			d.list = mszReaders;
+			d.size = *pcchReaders;
+		}
+	}
 
 	itecard_status_t ret;
 	LONG r;
@@ -496,10 +505,13 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 		else {
-			d.list[d.len] = '\0';
+			if (d.list != NULL)
+			{
+				d.list[d.len] = '\0';
 
-			if (auto_alloc == true) {
-				*((LPSTR *)mszReaders) = d.list;
+				if (auto_alloc == true) {
+					*((LPSTR *)mszReaders) = d.list;
+				}
 			}
 
 			*pcchReaders = d.len + 1;
@@ -540,11 +552,14 @@ int _scardListReadersCallbackW(struct itecard_devlist *const devlist, const uint
 	swprintf_s(name, readerNameLenW + 12, L"%s %d", readerNameW, id);
 	name_len = wstrLen(name) + 1;
 
-	if (d->len + name_len > d->size) {
-		return 0;
+	if (d->list != NULL)
+	{
+		if (d->len + name_len > d->size) {
+			return 0;
+		}
+		memcpy(d->list + d->len, name, name_len * sizeof(wchar_t));
 	}
 
-	memcpy(d->list + d->len, name, name_len * sizeof(wchar_t));
 	d->len += name_len;
 
 	return 1;
@@ -559,34 +574,40 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 	if (!itecard_devlist_check(dl))
 		return SCARD_E_INVALID_HANDLE;
 
-	if (mszReaders == NULL || pcchReaders == NULL)
+	if (pcchReaders == NULL)
 		return SCARD_E_INVALID_PARAMETER;
 
 	bool auto_alloc = false;
 	struct _scardListReadersDataW d;
 
-	if (*pcchReaders == SCARD_AUTOALLOCATE)
-	{
-		auto_alloc = true;
-
-		d.list = memAlloc(((readerNameLenW + 12) * 8 + 1) * sizeof(wchar_t));
-		if (d.list == NULL) {
-			internal_err(L"SCardListReadersW(ITE): memAlloc failed");
-			*pcchReaders = 0;
-			return SCARD_E_NO_MEMORY;
-		}
-
-		d.size = (readerNameLenW + 12) * 8 + 1;
-	}
-	else {
-		if (*pcchReaders < (readerNameLenW + 12) * 8 + 1)
-			return SCARD_E_INSUFFICIENT_BUFFER;
-
-		d.list = mszReaders;
-		d.size = *pcchReaders;
-	}
-
+	d.size = 0;
 	d.len = 0;
+	d.list = NULL;
+
+	if (mszReaders != NULL)
+	{
+		if (*pcchReaders == SCARD_AUTOALLOCATE)
+		{
+			auto_alloc = true;
+
+			d.list = memAlloc(((readerNameLenW + 12) * 8 + 1) * sizeof(wchar_t));
+			if (d.list == NULL) {
+				internal_err(L"SCardListReadersW(ITE): memAlloc failed");
+				*pcchReaders = 0;
+				return SCARD_E_NO_MEMORY;
+			}
+
+			d.size = (readerNameLenW + 12) * 8 + 1;
+		}
+		else if (*pcchReaders < (readerNameLenW + 12) * 8 + 1) {
+			*pcchReaders = (readerNameLenW + 12) * 8 + 1;
+			return SCARD_E_INSUFFICIENT_BUFFER;
+		}
+		else {
+			d.list = mszReaders;
+			d.size = *pcchReaders;
+		}
+	}
 
 	itecard_status_t ret;
 	LONG r;
@@ -598,10 +619,13 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 		else {
-			d.list[d.len] = L'\0';
+			if (d.list != NULL)
+			{
+				d.list[d.len] = L'\0';
 
-			if (auto_alloc == true) {
-				*((LPWSTR *)mszReaders) = d.list;
+				if (auto_alloc == true) {
+					*((LPWSTR *)mszReaders) = d.list;
+				}
 			}
 
 			*pcchReaders = d.len + 1;
