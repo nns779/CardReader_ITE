@@ -494,7 +494,6 @@ devdb_status_t devdb_ref(devdb *const db, const uint32_t id)
 
 devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool clear)
 {
-	devdb_status_t r = DEVDB_E_INTERNAL;
 	struct devdb_shared_devinfo *devinfo;
 
 	if (db->info->count <= id) {
