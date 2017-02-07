@@ -164,6 +164,8 @@
   <ItemGroup>
     <ClCompile Include="card.c" />
     <ClCompile Include="debug.c" />
+    <ClCompile Include="devdb.c" />
+    <ClCompile Include="handle.c" />
     <ClCompile Include="ite.c" />
     <ClCompile Include="itecard.c" />
     <ClCompile Include="memory.c" />
@@ -177,6 +179,9 @@
   <ItemGroup>
     <ClInclude Include="card.h" />
     <ClInclude Include="debug.h" />
+    <ClInclude Include="devdb.h" />
+    <ClInclude Include="devdb_userdef.h" />
+    <ClInclude Include="handle.h" />
     <ClInclude Include="ite.h" />
     <ClInclude Include="itecard.h" />
     <ClInclude Include="memory.h" />
