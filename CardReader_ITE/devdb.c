@@ -187,19 +187,17 @@ void devdb_unlock(devdb *const db)
 	}
 
 	_devdb_spin_unlock(db);
+
 	return;
 }
 
-devdb_status_t devdb_update(devdb *const db)
+devdb_status_t devdb_update_nolock(devdb *const db)
 {
-	devdb_lock(db);
-
 	HDEVINFO devInfo;
 
 	devInfo = SetupDiGetClassDevsW(&(const GUID) { DEVDB_DEVICE_CLASS }, NULL, NULL, DIGCF_DEVICEINTERFACE | DIGCF_PRESENT);
 	if (devInfo == INVALID_HANDLE_VALUE) {
 		win32_err(L"devdb_update: SetupDiGetClassDevsW");
-		devdb_unlock(db);
 		return DEVDB_E_API;
 	}
 
@@ -210,7 +208,6 @@ devdb_status_t devdb_update(devdb *const db)
 	if (detailDataArray == NULL) {
 		internal_err(L"devdb_update: memAlloc failed 1");
 		SetupDiDestroyDeviceInfoList(devInfo);
-		devdb_unlock(db);
 		return DEVDB_E_NO_MEMORY;
 	}
 
@@ -355,6 +352,16 @@ devdb_status_t devdb_update(devdb *const db)
 	}
 
 	memFree(detailDataArray);
+
+	return r;
+}
+
+devdb_status_t devdb_update(devdb *const db)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_update_nolock(db);
 	devdb_unlock(db);
 
 	return r;
@@ -362,100 +369,147 @@ devdb_status_t devdb_update(devdb *const db)
 
 #define _devdb_get_shared_devinfo(db, id) ((struct devdb_shared_devinfo *)(((uint8_t *)(db)->info->dev)) + ((db)->info->size * (id)))
 
-devdb_status_t devdb_get_path(devdb *const db, const uint32_t id, const wchar_t **const path)
+devdb_status_t devdb_get_shared_devinfo_nolock(devdb *const db, const uint32_t id, struct devdb_shared_devinfo **const devinfo)
 {
-	devdb_lock(db);
-
-	devdb_status_t r = DEVDB_E_INTERNAL;
-
 	if (db->info->count <= id) {
-		r = DEVDB_E_INVALID_PARAMETER;
-		goto end1;
+		return DEVDB_E_INVALID_PARAMETER;
+	}
+
+	*devinfo = _devdb_get_shared_devinfo(db, id);
+
+	return DEVDB_S_OK;
+}
+
+devdb_status_t devdb_get_shared_devinfo(devdb *const db, const uint32_t id, struct devdb_shared_devinfo **const devinfo)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_get_shared_devinfo_nolock(db, id, devinfo);
+	devdb_unlock(db);
+
+	return r;
+}
+
+devdb_status_t devdb_get_path_nolock(devdb *const db, const uint32_t id, const wchar_t **const path)
+{
+	if (db->info->count <= id) {
+		return DEVDB_E_INVALID_PARAMETER;
 	}
 
 	*path = _devdb_get_shared_devinfo(db, id)->path;
 
-	r = DEVDB_S_OK;
+	return DEVDB_S_OK;
+}
 
-end1:
+devdb_status_t devdb_get_path(devdb *const db, const uint32_t id, const wchar_t **const path)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_get_path_nolock(db, id, path);
 	devdb_unlock(db);
+
 	return r;
 }
 
-devdb_status_t devdb_get_userdata(devdb *const db, const uint32_t id, void **pp)
+devdb_status_t devdb_get_ref_count_nolock(devdb *const db, const uint32_t id, uint32_t *const ref)
 {
-	devdb_lock(db);
-
-	devdb_status_t r = DEVDB_E_INTERNAL;
-
 	if (db->info->count <= id) {
-		r = DEVDB_E_INVALID_PARAMETER;
-		goto end1;
+		return DEVDB_E_INVALID_PARAMETER;
+	}
+
+	*ref = _devdb_get_shared_devinfo(db, id)->ref;
+
+	return DEVDB_S_OK;
+}
+
+devdb_status_t devdb_get_ref_count(devdb *const db, const uint32_t id, uint32_t *const ref)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_get_ref_count_nolock(db, id, ref);
+	devdb_unlock(db);
+
+	return r;
+}
+
+devdb_status_t devdb_get_userdata_nolock(devdb *const db, const uint32_t id, void **pp)
+{
+	if (db->info->count <= id) {
+		return DEVDB_E_INVALID_PARAMETER;
 	}
 
 	*pp = _devdb_get_shared_devinfo(db, id)->user;
 
-	r = DEVDB_S_OK;
+	return DEVDB_S_OK;
+}
 
-end1:
+devdb_status_t devdb_get_userdata(devdb *const db, const uint32_t id, void **pp)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_get_userdata_nolock(db, id, pp);
 	devdb_unlock(db);
+
 	return r;
 }
 
-devdb_status_t devdb_ref(devdb *const db, const uint32_t id)
+devdb_status_t devdb_ref_nolock(devdb *const db, const uint32_t id)
 {
-	devdb_lock(db);
-
-	devdb_status_t r = DEVDB_E_INTERNAL;
 	struct devdb_shared_devinfo *devinfo;
 
 	if (db->info->count <= id) {
-		r = DEVDB_E_INVALID_PARAMETER;
-		goto end1;
+		return DEVDB_E_INVALID_PARAMETER;
 	}
 
 	devinfo = _devdb_get_shared_devinfo(db, id);
 
 	if (devinfo->ref > DEVDB_MAX_DEV_REF_NUM) {
 		internal_err(L"devdb_ref: ref > DEVDB_MAX_DEV_REF_NUM");
-		goto end1;
+		return DEVDB_E_INTERNAL;
 	}
 	else if (devinfo->ref == DEVDB_MAX_DEV_REF_NUM) {
 		internal_err(L"devdb_ref: ref == DEVDB_MAX_DEV_REF_NUM");
-		r = DEVDB_E_INTERNAL_LIMIT;
-		goto end1;
+		return DEVDB_E_INTERNAL_LIMIT;
 	}
 
 	devinfo->ref++;
-	r = DEVDB_S_OK;
 
-end1:
+	return DEVDB_S_OK;
+}
+
+devdb_status_t devdb_ref(devdb *const db, const uint32_t id)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_ref_nolock(db, id);
 	devdb_unlock(db);
+
 	return r;
 }
 
-devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear)
+devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool clear)
 {
-	devdb_lock(db);
-
 	devdb_status_t r = DEVDB_E_INTERNAL;
 	struct devdb_shared_devinfo *devinfo;
 
 	if (db->info->count <= id) {
-		r = DEVDB_E_INVALID_PARAMETER;
-		goto end1;
+		return DEVDB_E_INVALID_PARAMETER;
 	}
 
 	devinfo = _devdb_get_shared_devinfo(db, id);
 
 	if (devinfo->ref > DEVDB_MAX_DEV_REF_NUM) {
 		internal_err(L"devdb_unref: ref > DEVDB_MAX_DEV_REF_NUM");
-		goto end1;
+		return DEVDB_E_INTERNAL;
 	}
 	else if (devinfo->ref == DEVDB_MAX_DEV_REF_NUM) {
 		internal_err(L"devdb_unref: unref == 0");
-		r = DEVDB_E_INTERNAL_LIMIT;
-		goto end1;
+		return DEVDB_E_INTERNAL_LIMIT;
 	}
 
 	devinfo->ref--;
@@ -470,9 +524,16 @@ devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear)
 		}
 	}
 
-	r = DEVDB_S_OK;
+	return DEVDB_S_OK;
+}
 
-end1:
+devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_unref_nolock(db, id, clear);
 	devdb_unlock(db);
+
 	return r;
 }
