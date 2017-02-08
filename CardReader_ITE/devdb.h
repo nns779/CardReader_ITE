@@ -52,7 +52,10 @@ typedef enum
 	DEVDB_E_API,
 	DEVDB_E_INTERNAL_LIMIT,
 	DEVDB_E_NO_DEVICES,
+	DEVDB_E_DEVICE_NOT_FOUND,
 } devdb_status_t;
+
+typedef int(*devdb_enum_callback)(devdb *const db, const uint32_t id, const struct devdb_shared_devinfo *const devinfo, void *prm);
 
 extern devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const uint32_t user_size);
 extern devdb_status_t devdb_close(devdb *const db);
@@ -60,6 +63,8 @@ extern void devdb_lock(devdb *const db);
 extern void devdb_unlock(devdb *const db);
 extern devdb_status_t devdb_update_nolock(devdb *const db);
 extern devdb_status_t devdb_update(devdb *const db);
+extern devdb_status_t devdb_enum_nolock(devdb *const db, const devdb_enum_callback callback, void *prm);
+extern devdb_status_t devdb_enum(devdb *const db, const devdb_enum_callback callback, void *prm);
 extern devdb_status_t devdb_get_shared_devinfo_nolock(devdb *const db, const uint32_t id, struct devdb_shared_devinfo **const devinfo);
 extern devdb_status_t devdb_get_shared_devinfo(devdb *const db, const uint32_t id, struct devdb_shared_devinfo **const devinfo);
 extern devdb_status_t devdb_get_path_nolock(devdb *const db, const uint32_t id, const wchar_t **const path);
@@ -68,9 +73,9 @@ extern devdb_status_t devdb_get_ref_count_nolock(devdb *const db, const uint32_t
 extern devdb_status_t devdb_get_ref_count(devdb *const db, const uint32_t id, uint32_t *const ref);
 extern devdb_status_t devdb_get_userdata_nolock(devdb *const db, const uint32_t id, void **pp);
 extern devdb_status_t devdb_get_userdata(devdb *const db, const uint32_t id, void **pp);
-extern devdb_status_t devdb_ref_nolock(devdb *const db, const uint32_t id);
-extern devdb_status_t devdb_ref(devdb *const db, const uint32_t id);
-extern devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool clear);
-extern devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear);
+extern devdb_status_t devdb_ref_nolock(devdb *const db, const uint32_t id, uint32_t *const ref);
+extern devdb_status_t devdb_ref(devdb *const db, const uint32_t id, uint32_t *const ref);
+extern devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool clear, uint32_t *const ref);
+extern devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear, uint32_t *const ref);
 
 #define devdb_v_name(devdb) ((devdb)->name)

@@ -21,8 +21,8 @@ static const wchar_t devdb_guid[] = L"_{5EFFECB0-706A-4ED7-B944-9C65B3BE1722}";
 
 #define make_obj_name(buf, name1, name1_len, name2) \
 	memcpy((buf), (name2), sizeof((name2)) - (1 * sizeof(wchar_t))); \
-	memcpy((buf) + (sizeof((name2)) - (1 * sizeof(wchar_t))), (name1), (name1_len)); \
-	memcpy((buf) + (sizeof((name2)) - (1 * sizeof(wchar_t))) + (name1_len), devdb_guid, sizeof(devdb_guid)) \
+	memcpy((buf) + ((sizeof((name2)) / sizeof(wchar_t)) - 1), (name1), (name1_len) * sizeof(wchar_t)); \
+	memcpy((buf) + ((sizeof((name2)) / sizeof(wchar_t)) - 1) + (name1_len), devdb_guid, sizeof(devdb_guid))
 
 devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const uint32_t user_size)
 {
@@ -112,7 +112,7 @@ devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const uint
 	db->ev = ev;
 	db->shmem = shmem;
 	db->info = info;
-	memcpy(db->name, name, name_len + 1);
+	memcpy(db->name, name, (name_len + 1) * sizeof(wchar_t));
 
 	return DEVDB_S_OK;
 
@@ -307,7 +307,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 
 			if (k == detailDataIndex && devinfo->ref > 0) {
 				// システム上に存在せず利用されていない
-				memset(devinfo, 0, db->info->size);
+				memset(devinfo, 0, s);
 			}
 
 			p += s;
@@ -330,7 +330,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 			{
 				struct devdb_shared_devinfo *devinfo = (struct devdb_shared_devinfo *)p;
 
-				if (devinfo->path[0] == L'\0')
+				if (wstrIsEmpty(devinfo->path))
 				{
 					wstrCopyN(devinfo->path, detailDataArray[j]->DevicePath, 512);
 					memFree(detailDataArray[j]);
@@ -345,7 +345,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 			if (detailDataArray[j] != NULL) {
 				// 空きがない
 				memFree(detailDataArray[j]);
-				detailDataArray = NULL;
+				detailDataArray[j] = NULL;
 				lid = c;
 			}
 		}
@@ -367,15 +367,65 @@ devdb_status_t devdb_update(devdb *const db)
 	return r;
 }
 
-#define _devdb_get_shared_devinfo(db, id) ((struct devdb_shared_devinfo *)(((uint8_t *)(db)->info->dev)) + ((db)->info->size * (id)))
+#define _devdb_get_shared_devinfo(db, id) ((struct devdb_shared_devinfo *)(((uint8_t *)((db)->info->dev)) + ((db)->info->size * (id))))
+
+devdb_status_t devdb_enum_nolock(devdb *const db, const devdb_enum_callback callback, void *prm)
+{
+	devdb_status_t r = DEVDB_E_NO_DEVICES;
+
+	for (uint32_t i = 0, c = db->info->count; i < c; i++)
+	{
+		struct devdb_shared_devinfo *devinfo = _devdb_get_shared_devinfo(db, i);
+
+		if (!wstrIsEmpty(devinfo->path))
+		{
+			r = DEVDB_S_OK;
+
+			if (callback(db, i, devinfo, prm) == 0)
+				break;
+		}
+	}
+
+	return r;
+}
+
+devdb_status_t devdb_enum(devdb *const db, const devdb_enum_callback callback, void *prm)
+{
+	devdb_status_t r;
+
+	devdb_lock(db);
+	r = devdb_enum_nolock(db, callback, prm);
+	devdb_unlock(db);
+
+	return r;
+}
 
 devdb_status_t devdb_get_shared_devinfo_nolock(devdb *const db, const uint32_t id, struct devdb_shared_devinfo **const devinfo)
 {
+	*devinfo = NULL;
+
 	if (db->info->count <= id) {
 		return DEVDB_E_INVALID_PARAMETER;
 	}
 
-	*devinfo = _devdb_get_shared_devinfo(db, id);
+	struct devdb_shared_devinfo *di;
+
+	di = _devdb_get_shared_devinfo(db, id);
+
+	if (wstrIsEmpty(di->path))
+	{
+		devdb_status_t r;
+
+		r = devdb_update_nolock(db);
+		if (r != DEVDB_S_OK)
+			return r;
+
+		if (wstrIsEmpty(di->path)) {
+			return DEVDB_E_DEVICE_NOT_FOUND;
+		}
+	}
+
+	*devinfo = di;
 
 	return DEVDB_S_OK;
 }
@@ -393,6 +443,8 @@ devdb_status_t devdb_get_shared_devinfo(devdb *const db, const uint32_t id, stru
 
 devdb_status_t devdb_get_path_nolock(devdb *const db, const uint32_t id, const wchar_t **const path)
 {
+	*path = NULL;
+
 	if (db->info->count <= id) {
 		return DEVDB_E_INVALID_PARAMETER;
 	}
@@ -437,6 +489,8 @@ devdb_status_t devdb_get_ref_count(devdb *const db, const uint32_t id, uint32_t 
 
 devdb_status_t devdb_get_userdata_nolock(devdb *const db, const uint32_t id, void **pp)
 {
+	*pp = NULL;
+
 	if (db->info->count <= id) {
 		return DEVDB_E_INVALID_PARAMETER;
 	}
@@ -457,7 +511,7 @@ devdb_status_t devdb_get_userdata(devdb *const db, const uint32_t id, void **pp)
 	return r;
 }
 
-devdb_status_t devdb_ref_nolock(devdb *const db, const uint32_t id)
+devdb_status_t devdb_ref_nolock(devdb *const db, const uint32_t id, uint32_t *const ref)
 {
 	struct devdb_shared_devinfo *devinfo;
 
@@ -478,21 +532,24 @@ devdb_status_t devdb_ref_nolock(devdb *const db, const uint32_t id)
 
 	devinfo->ref++;
 
+	if (ref != NULL)
+		*ref = devinfo->ref;
+
 	return DEVDB_S_OK;
 }
 
-devdb_status_t devdb_ref(devdb *const db, const uint32_t id)
+devdb_status_t devdb_ref(devdb *const db, const uint32_t id, uint32_t *const ref)
 {
 	devdb_status_t r;
 
 	devdb_lock(db);
-	r = devdb_ref_nolock(db, id);
+	r = devdb_ref_nolock(db, id, ref);
 	devdb_unlock(db);
 
 	return r;
 }
 
-devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool clear)
+devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool clear, uint32_t *const ref)
 {
 	struct devdb_shared_devinfo *devinfo;
 
@@ -523,15 +580,18 @@ devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool
 		}
 	}
 
+	if (ref != NULL)
+		*ref = devinfo->ref;
+
 	return DEVDB_S_OK;
 }
 
-devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear)
+devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear, uint32_t *const ref)
 {
 	devdb_status_t r;
 
 	devdb_lock(db);
-	r = devdb_unref_nolock(db, id, clear);
+	r = devdb_unref_nolock(db, id, clear, ref);
 	devdb_unlock(db);
 
 	return r;
