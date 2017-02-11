@@ -7,7 +7,7 @@
 
 void dbg_wprintf(const wchar_t *const format, ...)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(_DEBUG_MSG)
 	va_list args;
 	wchar_t buf[0x100];
 
@@ -20,7 +20,7 @@ void dbg_wprintf(const wchar_t *const format, ...)
 
 void dbg_printf(const char *const format, ...)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(_DEBUG_MSG)
 	va_list args;
 	char buf[0x100];
 
@@ -33,7 +33,7 @@ void dbg_printf(const char *const format, ...)
 
 void win32_err(const wchar_t *const str)
 {
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(_DEBUG_MSG)
 	DWORD e = GetLastError();
 	void *buf = NULL;
 
