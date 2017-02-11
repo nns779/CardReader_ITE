@@ -12,8 +12,9 @@
 static const wchar_t mutex_name[] = L"ite_mutex {1B5EA8EA-4A3E-493F-A030-B52196935F99}";
 #endif
 
-static const GUID KSPROPSETID_ITEDeviceControl = { 0xf23fac2d, 0xe1af, 0x48e0,{ 0x8b, 0xbe, 0xa1, 0x40, 0x29, 0xc9, 0x2f, 0x11 } };
-static const GUID KSPROPSETID_ITESatControl = { 0xf23fac2d, 0xe1af, 0x48e0,{ 0x8b, 0xbe, 0xa1, 0x40, 0x29, 0xc9, 0x2f, 0x21 } };
+static const GUID KSPROPSETID_IteDevice = { 0xc6efe5eb, 0x855a, 0x4f1b, { 0xb7, 0xaa, 0x87, 0xb5, 0xe1, 0xdc, 0x41, 0x13} };
+static const GUID KSPROPSETID_IteDeviceControl = { 0xf23fac2d, 0xe1af, 0x48e0, { 0x8b, 0xbe, 0xa1, 0x40, 0x29, 0xc9, 0x2f, 0x11 } };
+static const GUID KSPROPSETID_IteSatControl = { 0xf23fac2d, 0xe1af, 0x48e0, { 0x8b, 0xbe, 0xa1, 0x40, 0x29, 0xc9, 0x2f, 0x21 } };
 
 bool ite_close(ite_dev *const dev);
 
@@ -101,7 +102,7 @@ bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 	KSPROPERTY prop;
 	ULONG rb;
 
-	prop.Set = KSPROPSETID_ITEDeviceControl;
+	prop.Set = KSPROPSETID_IteDeviceControl;
 	prop.Id = code;
 	prop.Flags = KSPROPERTY_TYPE_SET;
 
@@ -172,7 +173,7 @@ bool ite_sat_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 	KSPROPERTY prop;
 	ULONG rb;
 
-	prop.Set = KSPROPSETID_ITESatControl;
+	prop.Set = KSPROPSETID_IteSatControl;
 	prop.Id = code;
 
 	if (type == ITE_IOCTL_IN)

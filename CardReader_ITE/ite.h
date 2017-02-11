@@ -14,10 +14,27 @@ typedef struct _ite_dev {
 #endif
 } ite_dev;
 
+#pragma pack(2)
+
+/*
+	KSPROPSETID_IteDevice ({c6efe5eb-855a-4f1b-b7aa-87b5e1dc4113})
+
+	PropId: 5 (MercuryDeviceInfo) (get)
+*/
+
+struct ite_mercury_device_info
+{
+	uint16_t mode;
+	uint16_t vid;
+	uint16_t pid;
+};
+
+#pragma pack()
+
 #pragma pack(4)
 
 /*
-	KSPROPSETID_ITEDeviceControl ({f23fac2d-e1af-48e0-8bbe-a14029c92f11})
+	KSPROPSETID_IteDeviceControl ({f23fac2d-e1af-48e0-8bbe-a14029c92f11})
 
 	PropId: 0 (IOCTL for driver)
 	  0x01: Get Driver Information
@@ -131,7 +148,7 @@ struct ite_devctl_data
 };
 
 /*
-	KSPROPSETID_ITESatControl ({f23fac2d-e1af-48e0-8bbe-a14029c92f21})
+	KSPROPSETID_IteSatControl ({f23fac2d-e1af-48e0-8bbe-a14029c92f21})
 
 	PropId: 0 (LNB Power)
 
@@ -146,6 +163,11 @@ struct ite_lnb_data {
 };
 
 #pragma pack()
+
+typedef enum _ite_property_op {
+	ITE_PROPERTY_GET,
+	ITE_PROPERTY_SET,
+} ite_property_op;
 
 typedef enum _ite_ioctl_type {
 	ITE_IOCTL_IN,	// from device
