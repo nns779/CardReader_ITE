@@ -10,7 +10,7 @@
 #include "itecard.h"
 #include "ite.h"
 
-#define microSleep(microseconds) Sleep((microseconds) / 1000 + 1)
+#define micro2milli(microseconds) (((microseconds) / 1000) + 1)
 
 itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t *const path, struct itecard_shared_readerinfo *const reader, const itecard_protocol_t protocol, const bool exclusive)
 {
@@ -189,9 +189,16 @@ static itecard_status_t _itecard_get_atr_nolock(struct itecard_handle *const han
 
 	uint8_t atr[64];
 	uint8_t atr_len = 0;
-	uint16_t wait_count = 0;
 
-	while (wait_count < 380/*400*/)
+	uint32_t wt;	// time limit (in milliseconds)
+	uint32_t st;
+	uint32_t ct;
+
+	wt = micro2milli(card->etu * 9600);
+	st = micro2milli(card->etu * 24);
+	ct = 0;
+
+	while (ct <= wt)
 	{
 		uint8_t rl = 64 - atr_len;
 
@@ -199,14 +206,14 @@ static itecard_status_t _itecard_get_atr_nolock(struct itecard_handle *const han
 			break;
 
 		if (_itecard_recv_nolock(handle, atr + atr_len, &rl) == ITECARD_S_OK) {
-			wait_count = 0;
 			atr_len += rl;
+			ct = 0;
 		}
 		else {
-			wait_count++;
+			ct += st;
 		}
 
-		microSleep(card->etu * 24);
+		Sleep(st);
 	}
 
 	memcpy(card->atr, atr, atr_len);
@@ -238,15 +245,15 @@ static itecard_status_t _itecard_transmit_t1_nolock(struct itecard_handle *const
 		}
 	}
 
-	Sleep(card->T1.BGT / 1000 + 1);
+	Sleep(micro2milli(card->T1.BGT));
 
 	uint32_t wt;	// time limit (in milliseconds)
 	uint32_t st;
 	uint32_t ct;
 	uint32_t cl;
 
-	wt = (card->T1.BWT - card->T1.BGT) / 1000 + 1;
-	st = (card->etu * 32) / 1000 + 1;
+	wt = micro2milli(card->T1.BWT - card->T1.BGT);
+	st = micro2milli(card->etu * 32);
 	ct = 0;
 	cl = 0;
 
@@ -260,7 +267,7 @@ static itecard_status_t _itecard_transmit_t1_nolock(struct itecard_handle *const
 		ret = _itecard_recv_nolock(handle, recvBuf + cl, &rl);
 		if (ret == ITECARD_S_OK) {
 			if (cl == 0) {
-				wt = card->T1.CWT / 1000 + 1;
+				wt = micro2milli(card->T1.CWT);
 			}
 			cl += rl;
 			ct = 0;
