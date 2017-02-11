@@ -159,6 +159,8 @@ static void _devdb_spin_unlock(devdb *const db)
 
 void devdb_lock(devdb *const db)
 {
+	dbg(L"devdb_lock");
+
 	while (1)
 	{
 		_devdb_spin_lock(db);
@@ -178,6 +180,8 @@ void devdb_lock(devdb *const db)
 
 void devdb_unlock(devdb *const db)
 {
+	dbg(L"devdb_unlock");
+
 	_devdb_spin_lock(db);
 
 	db->info->available++;
@@ -193,6 +197,8 @@ void devdb_unlock(devdb *const db)
 
 devdb_status_t devdb_update_nolock(devdb *const db)
 {
+	dbg(L"devdb_update_nolock");
+
 	HDEVINFO devInfo;
 
 	devInfo = SetupDiGetClassDevsW(&(const GUID) { DEVDB_DEVICE_CLASS }, NULL, NULL, DIGCF_DEVICEINTERFACE | DIGCF_PRESENT);
