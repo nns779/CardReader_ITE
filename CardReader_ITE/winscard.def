@@ -1,5 +1,7 @@
 LIBRARY
 EXPORTS
+	SCardAccessStartedEvent			@5
+	SCardCancel						@9
 	SCardConnectA					@10
 	SCardConnectW					@11
 	SCardDisconnect					@13
@@ -11,6 +13,7 @@ EXPORTS
 	SCardListReadersA				@44
 	SCardListReadersW				@45
 	SCardReleaseContext				@53
+	SCardReleaseStartedEvent		@54
 	SCardStatusA					@61
 	SCardStatusW					@62
 	SCardTransmit					@63

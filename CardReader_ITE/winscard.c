@@ -15,6 +15,8 @@
 
 const SCARD_IO_REQUEST __g_rgSCardT1Pci = { SCARD_PROTOCOL_T1, sizeof(SCARD_IO_REQUEST) };
 
+static HANDLE _hEvent = NULL;
+
 static devdb _devdb_ite;
 
 static handle_list _hlist_ctx;
@@ -1018,6 +1020,27 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 	return r;
 }
 
+LONG WINAPI SCardCancel(SCARDCONTEXT hContext)
+{
+	dbg(L"SCardCancel(ITE)");
+
+	struct _context *ctx;
+
+	handle_list_lock(_hlist_ctx);
+
+	handle_list_get_nolock(_hlist_ctx, hContext, &ctx);
+	if (!_context_check(ctx)) {
+		handle_list_unlock(_hlist_ctx);
+		return SCARD_E_INVALID_HANDLE;
+	}
+
+	handle_list_unlock(_hlist_ctx);
+
+	// do nothing
+
+	return SCARD_S_SUCCESS;
+}
+
 /* Smart Card and Reader Access Functions */
 
 LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareMode, DWORD dwPreferredProtocols, LPSCARDHANDLE phCard, LPDWORD pdwActiveProtocol)
@@ -1447,6 +1470,23 @@ LONG WINAPI SCardTransmit(SCARDHANDLE hCard, LPCSCARD_IO_REQUEST pioSendPci, LPC
 }
 
 /* Other Functions */
+
+HANDLE WINAPI SCardAccessStartedEvent(void)
+{
+	if (_hEvent == NULL) {
+		_hEvent = CreateEventW(NULL, TRUE, TRUE, NULL);
+	}
+	else {
+		SetEvent(_hEvent);
+	}
+
+	return _hEvent;
+}
+
+void WINAPI SCardReleaseStartedEvent(void)
+{
+	return;
+}
 
 LONG WINAPI SCardIsValidContext(SCARDCONTEXT hContext)
 {
