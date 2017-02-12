@@ -26,7 +26,7 @@ bool handle_list_init(handle_list *const h, const uintptr_t base, const uintptr_
 
 	info = memAlloc(sizeof(struct handle_list_info) + (sizeof(info->handle) * (num - 1)));
 	if (info == NULL) {
-		internal_err(L"handle_init: memAlloc failed");
+		internal_err("handle_init: memAlloc failed");
 		return false;
 	}
 

@@ -29,7 +29,7 @@ bool ite_init(ite_dev *const dev)
 
 	mutex = CreateMutexW(NULL, FALSE, mutex_name);
 	if (mutex == NULL) {
-		win32_err(L"ite_init: CreateMutexW");
+		win32_err("ite_init: CreateMutexW");
 		return false;
 	}
 
@@ -56,13 +56,13 @@ bool ite_open(ite_dev *const dev, const wchar_t *const path)
 	HANDLE device;
 
 	if (dev->dev != INVALID_HANDLE_VALUE) {
-		dbg(L"ite_open: already be opened");
+		dbg("ite_open: already be opened");
 		return false;
 	}
 
 	device = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (device == INVALID_HANDLE_VALUE) {
-		win32_err(L"ite_open: CreateFileW");
+		win32_err("ite_open: CreateFileW");
 		return false;
 	}
 
@@ -107,11 +107,11 @@ bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 	prop.Flags = KSPROPERTY_TYPE_SET;
 
 	if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)in, in_size, &rb, NULL) == FALSE) {
-		win32_err(L"ite_dev_ioctl_nolock: DeviceIoControl (Property SET)");
+		win32_err("ite_dev_ioctl_nolock: DeviceIoControl (Property SET)");
 		return false;
 	}
 	else if (in_size != rb) {
-		internal_err(L"ite_dev_ioctl_nolock: data lost (Property SET)");
+		internal_err("ite_dev_ioctl_nolock: data lost (Property SET)");
 		return false;
 	}
 
@@ -120,11 +120,11 @@ bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 		prop.Flags = KSPROPERTY_TYPE_GET;
 
 		if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)out, out_size, &rb, NULL) == FALSE) {
-			win32_err(L"ite_dev_ioctl_nolock: DeviceIoControl (Property GET)");
+			win32_err("ite_dev_ioctl_nolock: DeviceIoControl (Property GET)");
 			return false;
 		}
 		else if (out_size != rb) {
-			internal_err(L"ite_dev_ioctl_nolock: data lost (Property GET)");
+			internal_err("ite_dev_ioctl_nolock: data lost (Property GET)");
 			return false;
 		}
 	}
@@ -181,7 +181,7 @@ bool ite_sat_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 		prop.Flags = KSPROPERTY_TYPE_GET;
 
 		if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)data, data_size, &rb, NULL) == FALSE) {
-			win32_err(L"ite_sat_ioctl_nolock: DeviceIoControl (Property GET)");
+			win32_err("ite_sat_ioctl_nolock: DeviceIoControl (Property GET)");
 			return false;
 		}
 
@@ -192,7 +192,7 @@ bool ite_sat_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 		prop.Flags = KSPROPERTY_TYPE_SET;
 
 		if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void*)data, data_size, &rb, NULL) == FALSE) {
-			win32_err(L"ite_sat_ioctl_nolock: DeviceIoControl (Property SET)");
+			win32_err("ite_sat_ioctl_nolock: DeviceIoControl (Property SET)");
 			return false;
 		}
 

@@ -22,7 +22,7 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 	if (protocol != ITECARD_PROTOCOL_UNDEFINED)
 	{
 		if (reader->exclusive == 1) {
-			internal_err(L"itecard_open: not allowed");
+			internal_err("itecard_open: not allowed");
 			r = ITECARD_E_NOT_SHARED;
 			goto end1;
 		}
@@ -32,7 +32,7 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 
 	// init device instance
 	if (ite_init(ite) == false) {
-		internal_err(L"itecard_open: ite_init failed");
+		internal_err("itecard_open: ite_init failed");
 		goto end1;
 	}
 
@@ -40,7 +40,7 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 
 	// open device
 	if (ite_open(ite, path) == false) {
-		internal_err(L"itecard_open: ite_open failed");
+		internal_err("itecard_open: ite_open failed");
 		r = ITECARD_E_NO_DEVICE;
 		goto end2;
 	}
@@ -105,7 +105,7 @@ static itecard_status_t _itecard_detect_nolock(struct itecard_handle *const hand
 	d.code = ITE_DEVCTL_CARD_DETECT;
 
 	if (ite_devctl_nolock(&handle->ite, ITE_IOCTL_IN, &d) == false) {
-		internal_err(L"_itecard_detect_nolock: ite_devctl_nolock failed");
+		internal_err("_itecard_detect_nolock: ite_devctl_nolock failed");
 		return ITECARD_E_FAILED;
 	}
 
@@ -121,7 +121,7 @@ static itecard_status_t _itecard_reset_nolock(struct itecard_handle *const handl
 	d.code = ITE_DEVCTL_CARD_RESET;
 
 	if (ite_devctl_nolock(&handle->ite, ITE_IOCTL_OUT, &d) == false) {
-		internal_err(L"_itecard_reset_nolock: ite_devctl_nolock failed");
+		internal_err("_itecard_reset_nolock: ite_devctl_nolock failed");
 		return ITECARD_E_FAILED;
 	}
 
@@ -136,7 +136,7 @@ static itecard_status_t _itecard_set_baudrate_nolock(struct itecard_handle *cons
 	d.uart_baudrate = baudrate;
 
 	if (ite_devctl_nolock(&handle->ite, ITE_IOCTL_IN, &d) == false) {
-		internal_err(L"_itecard_set_baudrate_nolock: ite_devctl_nolock failed");
+		internal_err("_itecard_set_baudrate_nolock: ite_devctl_nolock failed");
 		return ITECARD_E_FAILED;
 	}
 
@@ -152,7 +152,7 @@ static itecard_status_t _itecard_send_nolock(struct itecard_handle *const handle
 	d.uart_data.length = sendLen;
 
 	if (ite_devctl_nolock(&handle->ite, ITE_IOCTL_OUT, &d) == false) {
-		internal_err(L"_itecard_send_nolock: ite_devctl_nolock failed");
+		internal_err("_itecard_send_nolock: ite_devctl_nolock failed");
 		return ITECARD_E_FAILED;
 	}
 
@@ -167,7 +167,7 @@ static itecard_status_t _itecard_recv_nolock(struct itecard_handle *const handle
 	d.uart_data.length = *recvLen;
 
 	if (ite_devctl_nolock(&handle->ite, ITE_IOCTL_IN, &d) == false) {
-		internal_err(L"_itecard_recv_nolock: ite_devctl_nolock failed");
+		internal_err("_itecard_recv_nolock: ite_devctl_nolock failed");
 		return ITECARD_E_FAILED;
 	}
 	else if (d.uart_data.length == 0) {
@@ -238,7 +238,7 @@ static itecard_status_t _itecard_transmit_t1_nolock(struct itecard_handle *const
 
 			ret = _itecard_send_nolock(handle, sendBuf + pos, send_len);
 			if (ret != ITECARD_S_OK) {
-				internal_err(L"_itecard_transmit_t1_nolock: _itecard_send_nolock failed");
+				internal_err("_itecard_transmit_t1_nolock: _itecard_send_nolock failed");
 				return ret;
 			}
 			pos += send_len;
@@ -300,7 +300,7 @@ static itecard_status_t _itecard_transmit_t1_data_nolock(struct itecard_handle *
 
 		r = card_T1MakeBlock(card, block, code, req, req_len & 0xff);
 		if (r == -1) {
-			internal_err(L"_itecard_transmit_t1_data_nolock: card_T1MakeBlock failed");
+			internal_err("_itecard_transmit_t1_data_nolock: card_T1MakeBlock failed");
 			return ITECARD_E_INTERNAL;
 		}
 
@@ -326,12 +326,12 @@ static itecard_status_t _itecard_transmit_t1_data_nolock(struct itecard_handle *
 
 			ret = _itecard_transmit_t1_data_nolock(handle, 0xC1, &ifsd, sizeof(ifsd), res, &res_len);
 			if (ret != ITECARD_S_OK) {
-				dbg(L"_itecard_transmit_t1_data_nolock: IFS request failed");
+				dbg("_itecard_transmit_t1_data_nolock: IFS request failed");
 				r = ret;
 				break;
 			}
 			else if (res[0] != 254) {
-				dbg(L"_itecard_transmit_t1_data_nolock: IFSD != 254");
+				dbg("_itecard_transmit_t1_data_nolock: IFSD != 254");
 				r = ITECARD_E_FAILED;
 				break;
 			}
@@ -373,18 +373,18 @@ static itecard_status_t _itecard_transmit_t1_data_nolock(struct itecard_handle *
 				}
 				else {
 					// R-Block from card
-					dbg(L"_itecard_transmit_t1_data_nolock: R-Block");
+					dbg("_itecard_transmit_t1_data_nolock: R-Block");
 					rblock = true;
 				}
 			}
 			else {
-				internal_err(L"_itecard_transmit_t1_data_nolock: block error");
+				internal_err("_itecard_transmit_t1_data_nolock: block error");
 			}
 
 			retry_count++;
 
 			if (retry_count > 3) {
-				internal_err(L"_itecard_transmit_t1_data_nolock: retry_count >= 3");
+				internal_err("_itecard_transmit_t1_data_nolock: retry_count >= 3");
 				r = ITECARD_E_COMM_FAILED;
 				break;
 			}
@@ -397,7 +397,7 @@ static itecard_status_t _itecard_transmit_t1_data_nolock(struct itecard_handle *
 
 				ret = _itecard_transmit_t1_data_nolock(handle, 0xC0, NULL, 0, res, &res_len);
 				if (ret != ITECARD_S_OK) {
-					dbg(L"_itecard_transmit_t1_data_nolock: RESYNCH request failed");
+					dbg("_itecard_transmit_t1_data_nolock: RESYNCH request failed");
 					r = ret;
 					break;
 				}
@@ -421,12 +421,12 @@ static itecard_status_t _itecard_transmit_t1_data_nolock(struct itecard_handle *
 			continue;
 		}
 		else if (ret == ITECARD_E_NO_DATA) {
-			internal_err(L"_itecard_transmit_t1_data_nolock: no data");
+			internal_err("_itecard_transmit_t1_data_nolock: no data");
 			r = ITECARD_E_COMM_FAILED;
 			break;
 		}
 		else {
-			internal_err(L"_itecard_transmit_t1_data_nolock: _itecard_transmit_t1_nolock failed");
+			internal_err("_itecard_transmit_t1_data_nolock: _itecard_transmit_t1_nolock failed");
 			r = ret;
 			break;
 		}
@@ -443,12 +443,12 @@ static itecard_status_t _itecard_init_nolock(struct itecard_handle *const handle
 	// detect
 	ret = _itecard_detect_nolock(handle, &b);
 	if (ret != ITECARD_S_OK) {
-		internal_err(L"_itecard_init_nolock: _itecard_detect_nolock failed");
+		internal_err("_itecard_init_nolock: _itecard_detect_nolock failed");
 		return ret;
 	}
 
 	if (b == false) {
-		internal_err(L"_itecard_init_nolock: card not found");
+		internal_err("_itecard_init_nolock: card not found");
 		return ITECARD_E_NO_CARD;
 	}
 
@@ -459,7 +459,7 @@ static itecard_status_t _itecard_init_nolock(struct itecard_handle *const handle
 	// reset
 	ret = _itecard_reset_nolock(handle);
 	if (ret != ITECARD_S_OK) {
-		internal_err(L"_itecard_init_nolock: _itecard_reset_nolock failed");
+		internal_err("_itecard_init_nolock: _itecard_reset_nolock failed");
 		return ret;
 	}
 
@@ -472,19 +472,19 @@ static itecard_status_t _itecard_init_nolock(struct itecard_handle *const handle
 	// get atr
 	ret = _itecard_get_atr_nolock(handle);
 	if (ret != ITECARD_S_OK) {
-		internal_err(L"_itecard_init_nolock: _itecard_get_atr_nolock failed");
+		internal_err("_itecard_init_nolock: _itecard_get_atr_nolock failed");
 		return ret;
 	}
 
 	if (card->atr_len == 0) {
-		internal_err(L"_itecard_init_nolock: unresponsive card");
+		internal_err("_itecard_init_nolock: unresponsive card");
 		card_clear(card);
 		return ITECARD_E_UNRESPONSIVE_CARD;
 	}
 
 	// parse atr
 	if (card_parseATR(card) == false) {
-		internal_err(L"_itecard_init_nolock: unsupported card");
+		internal_err("_itecard_init_nolock: unsupported card");
 		card_clear(card);
 		return ITECARD_E_UNSUPPORTED_CARD;
 	}
@@ -492,7 +492,7 @@ static itecard_status_t _itecard_init_nolock(struct itecard_handle *const handle
 	// set baudrate
 	ret = _itecard_set_baudrate_nolock(handle, 19200);
 	if (ret != ITECARD_S_OK) {
-		internal_err(L"_itecard_init_nolock: _itecard_set_baudrate_nolock failed");
+		internal_err("_itecard_init_nolock: _itecard_set_baudrate_nolock failed");
 		card_clear(card);
 		return ret;
 	}
@@ -531,7 +531,7 @@ itecard_status_t itecard_transmit(struct itecard_handle *const handle, const ite
 
 	ret = _itecard_init_nolock(handle);
 	if (ret != ITECARD_S_OK && ret != ITECARD_S_FALSE) {
-		internal_err(L"itecard_transmit: _itecard_init_nolock failed");
+		internal_err("itecard_transmit: _itecard_init_nolock failed");
 		return ret;
 	}
 
@@ -540,7 +540,7 @@ itecard_status_t itecard_transmit(struct itecard_handle *const handle, const ite
 	case ITECARD_PROTOCOL_T1:
 		ret = _itecard_transmit_t1_data_nolock(handle, 0x00, sendBuf, sendLen, recvBuf, recvLen);
 		if (ret != ITECARD_S_OK) {
-			internal_err(L"itecard_transmit: _itecard_transmit_t1_data_nolock failed (%08X)", ret);
+			internal_err("itecard_transmit: _itecard_transmit_t1_data_nolock failed (%08X)", ret);
 		}
 		break;
 
@@ -548,7 +548,7 @@ itecard_status_t itecard_transmit(struct itecard_handle *const handle, const ite
 		ret = ITECARD_E_UNSUPPORTED;
 	}
 
-	dbg(L"itecard_transmit: ret: %d", ret);
+	dbg("itecard_transmit: ret: %d", ret);
 
 	ite_unlock(&handle->ite);
 

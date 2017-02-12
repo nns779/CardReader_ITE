@@ -132,7 +132,7 @@ static LONG itecard_status_to_scard_status(itecard_status_t status)
 		return SCARD_E_COMM_DATA_LOST;
 
 	default:
-		dbg(L"itecard_status_to_scard_status: %d", status);
+		dbg("itecard_status_to_scard_status: %d", status);
 		return SCARD_F_INTERNAL_ERROR;
 	}
 }
@@ -255,7 +255,7 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 
 	dbr = devdb_get_shared_devinfo_nolock(&_devdb_ite, id, &devinfo);
 	if (dbr != DEVDB_S_OK) {
-		internal_err(L"_connect_card: devdb_get_shared_devinfo_nolock failed");
+		internal_err("_connect_card: devdb_get_shared_devinfo_nolock failed");
 		r = devdb_status_to_scard_status(dbr);
 		goto end1;
 	}
@@ -263,7 +263,7 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 	reader = (struct itecard_shared_readerinfo *)devinfo->user;
 
 	if (exclusive == true && (devinfo->ref > 0)) {
-		internal_err(L"_connect_card: device was opened in share mode by another application");
+		internal_err("_connect_card: device was opened in share mode by another application");
 		r = SCARD_E_SHARING_VIOLATION;
 		goto end1;
 	}
@@ -272,14 +272,14 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 
 	cr = itecard_open(&handle->itecard, devinfo->path, reader, protocol, exclusive);
 	if (cr != ITECARD_S_OK) {
-		internal_err(L"_connect_card: itecard_open failed");
+		internal_err("_connect_card: itecard_open failed");
 		r = itecard_status_to_scard_status(cr);
 		goto end1;
 	}
 
 	cr = itecard_init(&handle->itecard);
 	if (cr != ITECARD_S_OK && cr != ITECARD_S_FALSE) {
-		internal_err(L"_connect_card: itecard_init failed");
+		internal_err("_connect_card: itecard_init failed");
 		r = itecard_status_to_scard_status(cr);
 		goto end2;
 	}
@@ -291,13 +291,13 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 		*pdwActiveProtocol |= SCARD_PROTOCOL_T1;
 
 	if (*pdwActiveProtocol == SCARD_PROTOCOL_UNDEFINED) {
-		internal_err(L"_connect_card: no active protocol");
+		internal_err("_connect_card: no active protocol");
 		r = SCARD_E_PROTO_MISMATCH;
 		goto end2;
 	}
 
 	if (devdb_ref_nolock(&_devdb_ite, id, NULL) != DEVDB_S_OK) {
-		internal_err(L"_connect_card: devdb_ref_nolock failed");
+		internal_err("_connect_card: devdb_ref_nolock failed");
 		r = SCARD_F_INTERNAL_ERROR;
 		goto end2;
 	}
@@ -616,7 +616,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 LONG WINAPI SCardEstablishContext(DWORD dwScope, LPCVOID pvReserved1, LPCVOID pvReserved2, LPSCARDCONTEXT phContext)
 {
-	dbg(L"SCardEstablishContext(ITE)");
+	dbg("SCardEstablishContext(ITE)");
 
 	if (phContext == NULL)
 		return SCARD_E_INVALID_PARAMETER;
@@ -641,7 +641,7 @@ LONG WINAPI SCardEstablishContext(DWORD dwScope, LPCVOID pvReserved1, LPCVOID pv
 
 LONG WINAPI SCardReleaseContext(SCARDCONTEXT hContext)
 {
-	dbg(L"SCardReleaseContext(ITE)");
+	dbg("SCardReleaseContext(ITE)");
 
 	struct _context *ctx;
 	LONG r;
@@ -670,7 +670,7 @@ end:
 
 LONG WINAPI SCardFreeMemory(SCARDCONTEXT hContext, LPCVOID pvMem)
 {
-	dbg(L"SCardFreeMemory(ITE)");
+	dbg("SCardFreeMemory(ITE)");
 
 	if (pvMem == NULL)
 		return SCARD_E_INVALID_PARAMETER;
@@ -705,7 +705,7 @@ LONG WINAPI SCardFreeMemory(SCARDCONTEXT hContext, LPCVOID pvMem)
 
 LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR mszReaders, LPDWORD pcchReaders)
 {
-	dbg(L"SCardListReadersA(ITE)");
+	dbg("SCardListReadersA(ITE)");
 
 	if (pcchReaders == NULL)
 		return SCARD_E_INVALID_PARAMETER;
@@ -743,7 +743,7 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 
 			rl.list = memAlloc(_READER_LIST_SIZE_A * sizeof(char));
 			if (rl.list == NULL) {
-				internal_err(L"SCardListReadersA(ITE): memAlloc failed");
+				internal_err("SCardListReadersA(ITE): memAlloc failed");
 				r = SCARD_E_NO_MEMORY;
 				goto end;
 			}
@@ -812,7 +812,7 @@ end:
 
 LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR mszReaders, LPDWORD pcchReaders)
 {
-	dbg(L"SCardListReadersW(ITE)");
+	dbg("SCardListReadersW(ITE)");
 
 	if (pcchReaders == NULL)
 		return SCARD_E_INVALID_PARAMETER;
@@ -850,7 +850,7 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 
 			rl.list = memAlloc(_READER_LIST_SIZE_W * sizeof(wchar_t));
 			if (rl.list == NULL) {
-				internal_err(L"SCardListReadersW(ITE): memAlloc failed");
+				internal_err("SCardListReadersW(ITE): memAlloc failed");
 				r = SCARD_E_NO_MEMORY;
 				goto end;
 			}
@@ -921,7 +921,7 @@ end:
 
 LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCARD_READERSTATEA rgReaderStates, DWORD cReaders)
 {
-	dbg(L"SCardGetStatusChangeA(ITE)");
+	dbg("SCardGetStatusChangeA(ITE)");
 
 	if (rgReaderStates == NULL || cReaders == 0)
 		return SCARD_E_INVALID_PARAMETER;
@@ -976,7 +976,7 @@ LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 
 LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCARD_READERSTATEW rgReaderStates, DWORD cReaders)
 {
-	dbg(L"SCardGetStatusChangeW(ITE)");
+	dbg("SCardGetStatusChangeW(ITE)");
 
 	if (rgReaderStates == NULL || cReaders == 0)
 		return SCARD_E_INVALID_PARAMETER;
@@ -1031,7 +1031,7 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 
 LONG WINAPI SCardCancel(SCARDCONTEXT hContext)
 {
-	dbg(L"SCardCancel(ITE)");
+	dbg("SCardCancel(ITE)");
 
 	struct _context *ctx;
 
@@ -1054,7 +1054,7 @@ LONG WINAPI SCardCancel(SCARDCONTEXT hContext)
 
 LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareMode, DWORD dwPreferredProtocols, LPSCARDHANDLE phCard, LPDWORD pdwActiveProtocol)
 {
-	dbg(L"SCardConnectA(ITE)");
+	dbg("SCardConnectA(ITE)");
 
 	if (szReader == NULL || phCard == NULL || pdwActiveProtocol == NULL)
 		return SCARD_E_INVALID_PARAMETER;
@@ -1114,7 +1114,7 @@ end1:
 
 LONG WINAPI SCardConnectW(SCARDCONTEXT hContext, LPCWSTR szReader, DWORD dwShareMode, DWORD dwPreferredProtocols, LPSCARDHANDLE phCard, LPDWORD pdwActiveProtocol)
 {
-	dbg(L"SCardConnectW(ITE)");
+	dbg("SCardConnectW(ITE)");
 
 	if (szReader == NULL || phCard == NULL || pdwActiveProtocol == NULL)
 		return SCARD_E_INVALID_PARAMETER;
@@ -1174,7 +1174,7 @@ end1:
 
 LONG WINAPI SCardDisconnect(SCARDHANDLE hCard, DWORD dwDisposition)
 {
-	dbg(L"SCardDisconnect(ITE)");
+	dbg("SCardDisconnect(ITE)");
 
 	struct _handle *handle;
 	LONG r;
@@ -1204,7 +1204,7 @@ end:
 
 LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchReaderLen, LPDWORD pdwState, LPDWORD pdwProtocol, LPBYTE pbAtr, LPDWORD pcbAtrLen)
 {
-	dbg(L"SCardStatusA(ITE)");
+	dbg("SCardStatusA(ITE)");
 
 	struct _handle *handle;
 
@@ -1319,7 +1319,7 @@ end1:
 
 LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchReaderLen, LPDWORD pdwState, LPDWORD pdwProtocol, LPBYTE pbAtr, LPDWORD pcbAtrLen)
 {
-	dbg(L"SCardStatusW(ITE)");
+	dbg("SCardStatusW(ITE)");
 
 	struct _handle *handle;
 
@@ -1434,7 +1434,7 @@ end1:
 
 LONG WINAPI SCardTransmit(SCARDHANDLE hCard, LPCSCARD_IO_REQUEST pioSendPci, LPCBYTE pbSendBuffer, DWORD cbSendLength, LPSCARD_IO_REQUEST pioRecvPci, LPBYTE pbRecvBuffer, LPDWORD pcbRecvLength)
 {
-	dbg(L"SCardTransmit(ITE)");
+	dbg("SCardTransmit(ITE)");
 
 	if (pioSendPci == NULL || pbSendBuffer == NULL || pbRecvBuffer == NULL || pcbRecvLength == NULL || *pcbRecvLength == SCARD_AUTOALLOCATE)
 		return SCARD_E_INVALID_PARAMETER;

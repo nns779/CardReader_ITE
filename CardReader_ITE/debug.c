@@ -89,18 +89,18 @@ void dbg_printf(const char *const format, ...)
 #endif
 }
 
-void win32_err(const wchar_t *const str)
+void win32_err(const char *const str)
 {
 #if defined(_DEBUG) || defined(_DEBUG_MSG)
 	DWORD e = GetLastError();
 	void *buf = NULL;
 
-	if (FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, e, 0, (LPWSTR)&buf, 64, NULL) > 0) {
-		dbg_wprintf(L"%s: %s(%08X)\n", str, buf, e);
+	if (FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM, NULL, e, 0, (LPSTR)&buf, 64, NULL) > 0) {
+		dbg_printf("%s: %s(%08X)\n", str, buf, e);
 		LocalFree(buf);
 	}
 	else {
-		dbg_wprintf(L"%s: %08X\n", str, e);
+		dbg_printf("%s: %08X\n", str, e);
 	}
 #endif
 }
