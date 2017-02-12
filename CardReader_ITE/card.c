@@ -35,7 +35,7 @@ bool card_clear(struct card_info *const card)
 
 static bool _card_TA(struct card_info *const card, const int i, const int t, const uint8_t v)
 {
-	dbg(L"_card_TA: i: %d, t: %d, v: %d", i, t, v);
+	dbg("_card_TA: i: %d, t: %d, v: %d", i, t, v);
 
 	switch (i)
 	{
@@ -103,7 +103,7 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 			break;
 
 		default:
-			internal_err(L"_card_TA(1): not supported card 1");
+			internal_err("_card_TA(1): not supported card 1");
 			return false;
 		}
 
@@ -145,7 +145,7 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 			break;
 
 		default:
-			internal_err(L"_card_TA(1): not supported card 2");
+			internal_err("_card_TA(1): not supported card 2");
 			return false;
 		}
 
@@ -158,7 +158,7 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 			break;
 
 		default:
-			internal_err(L"_card_TA(2): not supported card");
+			internal_err("_card_TA(2): not supported card");
 			return false;
 		}
 		break;
@@ -175,7 +175,7 @@ static bool _card_TA(struct card_info *const card, const int i, const int t, con
 
 static bool _card_TB(struct card_info *const card, const int i, const int t, const uint8_t v)
 {
-	dbg(L"_card_TB: i: %d, t: %d, v: %d", i, t, v);
+	dbg("_card_TB: i: %d, t: %d, v: %d", i, t, v);
 
 	switch (i)
 	{
@@ -188,7 +188,7 @@ static bool _card_TB(struct card_info *const card, const int i, const int t, con
 		if (t == 1) {
 			card->T1.BWI = (v >> 4) & 0x0f;
 			card->T1.CWI = (v) & 0x0f;
-			dbg(L"_card_TB: BWI: %d, CWI: %d", card->T1.BWI, card->T1.CWI);
+			dbg("_card_TB: BWI: %d, CWI: %d", card->T1.BWI, card->T1.CWI);
 		}
 		break;
 	}
@@ -223,11 +223,11 @@ bool card_parseATR(struct card_info *const card)
 	uint8_t *atr = card->atr;
 	uint8_t atr_len = card->atr_len;
 
-	dbg(L"ATR: length: %d", atr_len);
+	dbg("ATR: length: %d", atr_len);
 
 	// TS
 	if (atr[0] != 0x3B) {
-		internal_err(L"card_parseATR: not supported card (TS)");
+		internal_err("card_parseATR: not supported card (TS)");
 		return false;
 	}
 
@@ -252,12 +252,12 @@ bool card_parseATR(struct card_info *const card)
 
 	while (t_len)
 	{
-		dbg(L"card_parseATR: idx: %d, ti: %d, t: %x", idx, ti, t);
+		dbg("card_parseATR: idx: %d, ti: %d, t: %x", idx, ti, t);
 
 		// TA
 		if (t & 0x10) {
 			if (_card_TA(card, ti, protocol, atr[idx]) == false) {
-				internal_err(L"card_parseATR: not supported card (TA)");
+				internal_err("card_parseATR: not supported card (TA)");
 				return false;
 			}
 			idx++;
@@ -267,11 +267,11 @@ bool card_parseATR(struct card_info *const card)
 		// TB
 		if (t & 0x20) {
 			if (t_len == 0) {
-				internal_err(L"card_parseATR: no enough size (TB)");
+				internal_err("card_parseATR: no enough size (TB)");
 				return false;
 			}
 			else if (_card_TB(card, ti, protocol, atr[idx]) == false) {
-				internal_err(L"card_parseATR: not supported card (TB)");
+				internal_err("card_parseATR: not supported card (TB)");
 				return false;
 			}
 			idx++;
@@ -281,11 +281,11 @@ bool card_parseATR(struct card_info *const card)
 		// TC
 		if (t & 0x40) {
 			if (t_len == 0) {
-				internal_err(L"card_parseATR: no enough size (TC)");
+				internal_err("card_parseATR: no enough size (TC)");
 				return false;
 			}
 			else if (_card_TC(card, ti, protocol, atr[idx]) == false) {
-				internal_err(L"card_parseATR: not supported card (TC)");
+				internal_err("card_parseATR: not supported card (TC)");
 				return false;
 			}
 			idx++;
@@ -295,7 +295,7 @@ bool card_parseATR(struct card_info *const card)
 		// TD
 		if (t & 0x80) {
 			if (t_len == 0) {
-				internal_err(L"card_parseATR: no enough size (TD)");
+				internal_err("card_parseATR: no enough size (TD)");
 				return false;
 			}
 
@@ -315,7 +315,7 @@ bool card_parseATR(struct card_info *const card)
 	}
 
 	if (t_len) {
-		internal_err(L"card_parseATR: invalid ATR");
+		internal_err("card_parseATR: invalid ATR");
 		return false;
 	}
 
@@ -325,12 +325,12 @@ bool card_parseATR(struct card_info *const card)
 		c ^= atr[i];
 
 	if (c != 0) {
-		internal_err(L"card_parseATR: TCK error");
+		internal_err("card_parseATR: TCK error");
 		return false;
 	}
 
 	card->etu = (card->Fi / (card->Di * card->f));
-	dbg(L"card_parseATR: etu: %d", card->etu);
+	dbg("card_parseATR: etu: %d", card->etu);
 
 	if (card->T0.b == true) {
 		card->T0.WT = (card->T0.WI * 960 * card->Di);
@@ -340,7 +340,7 @@ bool card_parseATR(struct card_info *const card)
 		card->T1.BWT = (2 * card->T1.BWI * 960 * 372 / card->f) + (11 * card->etu);
 		card->T1.CWT = (2 * card->T1.CWI + 11) * card->etu;
 		card->T1.BGT = 22 * card->etu;
-		dbg(L"card_parseATR: BWT: %d, CWT: %d, BGT: %d", card->T1.BWT, card->T1.CWT, card->T1.BGT);
+		dbg("card_parseATR: BWT: %d, CWT: %d, BGT: %d", card->T1.BWT, card->T1.CWT, card->T1.BGT);
 	}
 
 	memcpy(card->atr, atr, atr_len);
@@ -353,28 +353,28 @@ int card_T1MakeBlock(struct card_info *const card, uint8_t *const p, const uint8
 {
 	int r;
 
-	dbg(L"card_T1MakeBlock: code: %02X, inf_len: %d", code, inf_len);
+	dbg("card_T1MakeBlock: code: %02X, inf_len: %d", code, inf_len);
 
 	p[0] = 0;
 	
 	switch (code & 0xC0) {
 	case 0x00:
 		// I
-		dbg(L"card_T1MakeBlock: I");
+		dbg("card_T1MakeBlock: I");
 		p[1] = (card->T1.seq & 0x01) << 6;
 		r = 0;
 		break;
 
 	case 0x80:
 		// R
-		dbg(L"card_T1MakeBlock: R");
+		dbg("card_T1MakeBlock: R");
 		p[1] = (code & 0xAF) | ((card->T1.seq & 0x01) << 4);
 		r = 1;
 		break;
 
 	case 0xC0:
 		// S
-		dbg(L"card_T1MakeBlock: S");
+		dbg("card_T1MakeBlock: S");
 		p[1] = (code & 0xE3);
 		r = 2;
 		break;

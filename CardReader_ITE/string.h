@@ -16,3 +16,7 @@ extern void wstrCopy(wchar_t *const dst, const wchar_t *const src);
 extern void wstrCopyN(wchar_t *const dst, const wchar_t *const src, const size_t count);
 extern bool wstrToUInt32(const wchar_t *const str, uint32_t *const ui32);
 extern bool strToUInt32(const char *const str, uint32_t *const ui32);
+extern uint32_t wstrFromUInt32(wchar_t *const str, const size_t size, const uint32_t ui32, const int radix);
+extern uint32_t strFromUInt32(char *const str, const size_t size, const uint32_t ui32, const int radix);
+
+#define wstrIsEmpty(str) (((str)[0]) == L'\0')

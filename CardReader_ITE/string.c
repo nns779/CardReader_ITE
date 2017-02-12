@@ -141,3 +141,73 @@ bool strToUInt32(const char *const str, uint32_t *const ui32)
 
 	return true;
 }
+
+uint32_t wstrFromUInt32(wchar_t *const str, const size_t size, const uint32_t ui32, const int radix)
+{
+	uint32_t v = ui32;
+	size_t n = size;
+	wchar_t *d = (wchar_t *)str;
+
+	if (radix < 2 || radix > 36 || n < 2)
+		return 0;
+
+	n--;
+
+	do {
+		d++;
+		n--;
+		v /= radix;
+	} while (v && n);
+
+	if (v && !n)
+		/* no enough buffer */
+		return 0;
+
+	wchar_t *d2 = d;
+
+	*d2 = L'\0';
+
+	v = ui32;
+
+	do {
+		*--d2 = L"0123456789abcdefghijklmnopqrstuvwxyz"[v % radix];
+		v /= radix;
+	} while (v);
+
+	return (uint32_t)(d - d2);
+}
+
+uint32_t strFromUInt32(char *const str, const size_t size, const uint32_t ui32, const int radix)
+{
+	uint32_t v = ui32;
+	size_t n = size;
+	char *d = (char *)str;
+
+	if (radix < 2 || radix > 36 || n < 2)
+		return 0;
+
+	n--;
+
+	do {
+		d++;
+		n--;
+		v /= radix;
+	} while (v && n);
+
+	if (v && !n)
+		/* no enough buffer */
+		return 0;
+
+	char *d2 = d;
+
+	*d2 = '\0';
+
+	v = ui32;
+
+	do {
+		*--d2 = "0123456789abcdefghijklmnopqrstuvwxyz"[v % radix];
+		v /= radix;
+	} while (v);
+
+	return (uint32_t)(d - d2);
+}
