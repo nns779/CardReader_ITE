@@ -566,13 +566,20 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		friendlyNameLen = GetPrivateProfileStringW(L"Setting", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
 
+		if (GetPrivateProfileIntW(L"Setting", L"DebugLog", 0, path) != 0) {
+			memcpy(path + ret - 3, L"log", 3 * sizeof(wchar_t));
+			dbg_open(path);
+		}
+
 		if (devdb_open(&_devdb_ite, friendlyName, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
+			dbg_close();
 			memDeinit();
 			return FALSE;
 		}
 
 		if (handle_list_init(&_hlist_ctx, _CONTEXT_BASE, 32, _context_release_callback) == false) {
 			devdb_close(&_devdb_ite);
+			dbg_close();
 			memDeinit();
 			return FALSE;
 		}
@@ -580,6 +587,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		if (handle_list_init(&_hlist_card, _HANDLE_BASE, 32, _handle_release_callback) == false) {
 			handle_list_deinit(_hlist_ctx);
 			devdb_close(&_devdb_ite);
+			dbg_close();
 			memDeinit();
 			return FALSE;
 		}
@@ -592,6 +600,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		handle_list_deinit(_hlist_card);
 		handle_list_deinit(_hlist_ctx);
 		devdb_close(&_devdb_ite);
+		dbg_close();
 		memDeinit();
 		break;
 	}
