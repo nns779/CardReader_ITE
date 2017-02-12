@@ -174,7 +174,7 @@ uint32_t wstrFromUInt32(wchar_t *const str, const size_t size, const uint32_t ui
 		v /= radix;
 	} while (v);
 
-	return (d - d2);
+	return (uint32_t)(d - d2);
 }
 
 uint32_t strFromUInt32(char *const str, const size_t size, const uint32_t ui32, const int radix)
@@ -209,5 +209,5 @@ uint32_t strFromUInt32(char *const str, const size_t size, const uint32_t ui32, 
 		v /= radix;
 	} while (v);
 
-	return (d - d2);
+	return (uint32_t)(d - d2);
 }

@@ -12,7 +12,7 @@
 struct handle_list_info {
 	CRITICAL_SECTION sct;
 	uintptr_t base;
-	uint32_t num;
+	uintptr_t num;
 	handle_release_callback callback;
 	void *handle[1];
 };
