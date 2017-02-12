@@ -17,7 +17,7 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 	itecard_status_t r = ITECARD_E_INTERNAL;
 
 	if (handle->init == true)
-		return ITECARD_S_FALSE;
+		return ITECARD_S_OK;
 
 	if (protocol != ITECARD_PROTOCOL_UNDEFINED)
 	{
@@ -69,7 +69,7 @@ end1:
 itecard_status_t itecard_close(struct itecard_handle *const handle, const bool reset, const bool noref)
 {
 	if (handle->init == false)
-		return ITECARD_S_FALSE;
+		return ITECARD_S_OK;
 
 	ite_close(&handle->ite);
 	ite_release(&handle->ite);
