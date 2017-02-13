@@ -60,7 +60,7 @@ bool ite_open(ite_dev *const dev, const wchar_t *const path)
 		return false;
 	}
 
-	device = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	device = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
 	if (device == INVALID_HANDLE_VALUE) {
 		win32_err("ite_open: CreateFileW");
 		return false;
@@ -97,6 +97,38 @@ bool ite_unlock(ite_dev *const dev)
 	return true;
 }
 
+static bool _dev_io_control(ite_dev *const dev, DWORD dwIoControlCode, LPVOID lpInBuffer, DWORD nInBufferSize, LPVOID lpOutBuffer, DWORD nOutBufferSize, LPDWORD lpBytesReturned)
+{
+	OVERLAPPED overlapped;
+	BOOL ret;
+
+	memset(&overlapped, 0, sizeof(overlapped));
+
+	overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+	if (overlapped.hEvent == NULL) {
+		win32_err("_dev_io_control: CreateEventW");
+		return false;
+	}
+
+	ret = DeviceIoControl(dev->dev, dwIoControlCode, lpInBuffer, nInBufferSize, lpOutBuffer, nOutBufferSize, lpBytesReturned, &overlapped);
+	if (ret == FALSE)
+	{
+		if (GetLastError() == ERROR_IO_PENDING) {
+			ret = GetOverlappedResult(dev->dev, &overlapped, lpBytesReturned, TRUE);
+			if (ret == FALSE) {
+				win32_err("_dev_io_control: GetOverlappedResult");
+			}
+		}
+		else {
+			win32_err("_dev_io_control: DeviceIoControl");
+		}
+	}
+
+	CloseHandle(overlapped.hEvent);
+
+	return ret;
+}
+
 bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const in, const uint32_t in_size, const void *const out, const uint32_t out_size)
 {
 	KSPROPERTY prop;
@@ -106,8 +138,8 @@ bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 	prop.Id = code;
 	prop.Flags = KSPROPERTY_TYPE_SET;
 
-	if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)in, in_size, &rb, NULL) == FALSE) {
-		win32_err("ite_dev_ioctl_nolock: DeviceIoControl (Property SET)");
+	if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)in, in_size, &rb) == false) {
+		internal_err("ite_dev_ioctl_nolock: _dev_io_control failed (Property SET)");
 		return false;
 	}
 	else if (in_size != rb) {
@@ -119,8 +151,8 @@ bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 	{
 		prop.Flags = KSPROPERTY_TYPE_GET;
 
-		if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)out, out_size, &rb, NULL) == FALSE) {
-			win32_err("ite_dev_ioctl_nolock: DeviceIoControl (Property GET)");
+		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)out, out_size, &rb) == false) {
+			internal_err("ite_dev_ioctl_nolock: _dev_io_control failed (Property GET)");
 			return false;
 		}
 		else if (out_size != rb) {
@@ -180,8 +212,8 @@ bool ite_sat_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 	{
 		prop.Flags = KSPROPERTY_TYPE_GET;
 
-		if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)data, data_size, &rb, NULL) == FALSE) {
-			win32_err("ite_sat_ioctl_nolock: DeviceIoControl (Property GET)");
+		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)data, data_size, &rb) == FALSE) {
+			internal_err("ite_sat_ioctl_nolock: _dev_io_control failed (Property GET)");
 			return false;
 		}
 
@@ -191,8 +223,8 @@ bool ite_sat_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 	{
 		prop.Flags = KSPROPERTY_TYPE_SET;
 
-		if (DeviceIoControl(dev->dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void*)data, data_size, &rb, NULL) == FALSE) {
-			win32_err("ite_sat_ioctl_nolock: DeviceIoControl (Property SET)");
+		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void*)data, data_size, &rb) == FALSE) {
+			internal_err("ite_sat_ioctl_nolock: _dev_io_control failed (Property SET)");
 			return false;
 		}
 
