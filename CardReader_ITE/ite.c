@@ -97,24 +97,33 @@ bool ite_unlock(ite_dev *const dev)
 	return true;
 }
 
-static bool _dev_io_control(ite_dev *const dev, DWORD dwIoControlCode, LPVOID lpInBuffer, DWORD nInBufferSize, LPVOID lpOutBuffer, DWORD nOutBufferSize, LPDWORD lpBytesReturned)
+static bool _init_overlapped(OVERLAPPED *const overlapped)
 {
-	OVERLAPPED overlapped;
-	BOOL ret;
+	memset(overlapped, 0, sizeof(OVERLAPPED));
 
-	memset(&overlapped, 0, sizeof(overlapped));
-
-	overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-	if (overlapped.hEvent == NULL) {
-		win32_err("_dev_io_control: CreateEventW");
+	overlapped->hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+	if (overlapped->hEvent == NULL) {
+		win32_err("_init_overlapped: CreateEventW");
 		return false;
 	}
 
-	ret = DeviceIoControl(dev->dev, dwIoControlCode, lpInBuffer, nInBufferSize, lpOutBuffer, nOutBufferSize, lpBytesReturned, &overlapped);
+	return true;
+}
+
+static void _release_overlapped(OVERLAPPED *const overlapped)
+{
+	CloseHandle(overlapped->hEvent);
+}
+
+static bool _dev_io_control(ite_dev *const dev, DWORD dwIoControlCode, LPVOID lpInBuffer, DWORD nInBufferSize, LPVOID lpOutBuffer, DWORD nOutBufferSize, LPDWORD lpBytesReturned, LPOVERLAPPED lpOverlapped)
+{
+	BOOL ret;
+
+	ret = DeviceIoControl(dev->dev, dwIoControlCode, lpInBuffer, nInBufferSize, lpOutBuffer, nOutBufferSize, lpBytesReturned, lpOverlapped);
 	if (ret == FALSE)
 	{
 		if (GetLastError() == ERROR_IO_PENDING) {
-			ret = GetOverlappedResult(dev->dev, &overlapped, lpBytesReturned, TRUE);
+			ret = GetOverlappedResult(dev->dev, lpOverlapped, lpBytesReturned, TRUE);
 			if (ret == FALSE) {
 				win32_err("_dev_io_control: GetOverlappedResult");
 			}
@@ -124,44 +133,57 @@ static bool _dev_io_control(ite_dev *const dev, DWORD dwIoControlCode, LPVOID lp
 		}
 	}
 
-	CloseHandle(overlapped.hEvent);
-
-	return ret;
+	return (ret == FALSE) ? false : true;
 }
 
 bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const in, const uint32_t in_size, const void *const out, const uint32_t out_size)
 {
 	KSPROPERTY prop;
 	ULONG rb;
+	OVERLAPPED overlapped;
 
 	prop.Set = KSPROPSETID_IteDeviceControl;
 	prop.Id = code;
 	prop.Flags = KSPROPERTY_TYPE_SET;
 
-	if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)in, in_size, &rb) == false) {
-		internal_err("ite_dev_ioctl_nolock: _dev_io_control failed (Property SET)");
+	if (_init_overlapped(&overlapped) == false) {
+		internal_err("ite_dev_ioctl_nolock: _init_overlapped failed");
 		return false;
+	}
+
+	bool r = true;
+
+	if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)in, in_size, &rb, &overlapped) == false) {
+		internal_err("ite_dev_ioctl_nolock: _dev_io_control failed (Property SET)");
+		r = false;
+		goto end;
 	}
 	else if (in_size != rb) {
 		internal_err("ite_dev_ioctl_nolock: data lost (Property SET)");
-		return false;
+		r = false;
+		goto end;
 	}
 
 	if (type == ITE_IOCTL_IN)
 	{
 		prop.Flags = KSPROPERTY_TYPE_GET;
 
-		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)out, out_size, &rb) == false) {
+		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)out, out_size, &rb, &overlapped) == false) {
 			internal_err("ite_dev_ioctl_nolock: _dev_io_control failed (Property GET)");
-			return false;
+			r = false;
+			goto end;
 		}
 		else if (out_size != rb) {
 			internal_err("ite_dev_ioctl_nolock: data lost (Property GET)");
-			return false;
+			r = false;
+			goto end;
 		}
 	}
 
-	return true;
+end:
+	_release_overlapped(&overlapped);
+
+	return r;
 }
 
 bool ite_dev_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const in, const uint32_t in_size, const void *const out, const uint32_t out_size)
@@ -204,34 +226,40 @@ bool ite_sat_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioc
 {
 	KSPROPERTY prop;
 	ULONG rb;
+	OVERLAPPED overlapped;
 
 	prop.Set = KSPROPSETID_IteSatControl;
 	prop.Id = code;
+
+	if (_init_overlapped(&overlapped) == false) {
+		internal_err("ite_sat_ioctl_nolock: _init_overlapped failed");
+		return false;
+	}
+
+	bool r = true;
 
 	if (type == ITE_IOCTL_IN)
 	{
 		prop.Flags = KSPROPERTY_TYPE_GET;
 
-		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)data, data_size, &rb) == FALSE) {
+		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)data, data_size, &rb, &overlapped) == false) {
 			internal_err("ite_sat_ioctl_nolock: _dev_io_control failed (Property GET)");
-			return false;
+			r = false;
 		}
-
-		return true;
 	}
 	else if (type == ITE_IOCTL_OUT)
 	{
 		prop.Flags = KSPROPERTY_TYPE_SET;
 
-		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void*)data, data_size, &rb) == FALSE) {
+		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void*)data, data_size, &rb, &overlapped) == false) {
 			internal_err("ite_sat_ioctl_nolock: _dev_io_control failed (Property SET)");
-			return false;
+			r = false;
 		}
-
-		return true;
 	}
 
-	return false;
+	_release_overlapped(&overlapped);
+
+	return r;
 }
 
 bool ite_sat_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const data, const uint32_t data_size)
