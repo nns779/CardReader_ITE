@@ -133,6 +133,8 @@ static bool _dev_io_control(ite_dev *const dev, DWORD dwIoControlCode, LPVOID lp
 		}
 	}
 
+	ResetEvent(lpOverlapped->hEvent);
+
 	return (ret == FALSE) ? false : true;
 }
 
