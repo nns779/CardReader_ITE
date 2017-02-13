@@ -439,16 +439,19 @@ static itecard_status_t _itecard_init_nolock(struct itecard_handle *const handle
 {
 	itecard_status_t r = ITECARD_E_INTERNAL, ret;
 	bool b = false;
+	struct card_info *card = &handle->reader->card;
 
 	// detect
 	ret = _itecard_detect_nolock(handle, &b);
 	if (ret != ITECARD_S_OK) {
 		internal_err("_itecard_init_nolock: _itecard_detect_nolock failed");
+		card_clear(card);
 		return ret;
 	}
 
 	if (b == false) {
 		internal_err("_itecard_init_nolock: card not found");
+		card_clear(card);
 		return ITECARD_E_NO_CARD;
 	}
 
@@ -464,8 +467,6 @@ static itecard_status_t _itecard_init_nolock(struct itecard_handle *const handle
 	}
 
 	Sleep(10);
-
-	struct card_info *card = &handle->reader->card;
 
 	card_init(card);
 
