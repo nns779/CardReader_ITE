@@ -5,13 +5,8 @@
 #include <stdint.h>
 #include <windows.h>
 
-//#define _ITE_MUTEX
-
 typedef struct _ite_dev {
 	HANDLE dev;
-#ifdef _ITE_MUTEX
-	HANDLE mutex;
-#endif
 } ite_dev;
 
 #pragma pack(2)
@@ -100,7 +95,7 @@ struct ite_driver_data
 struct ite_devctl_data
 {
 	union {
-		uint32_t code;			// IOCTL code
+		uint32_t code;			// Device control code
 		uint32_t ui32_rval;		// 32bit return value
 		uint8_t ui8_rval;		// 8bit return value (reg val)
 	};
@@ -174,15 +169,8 @@ typedef enum _ite_ioctl_type {
 	ITE_IOCTL_OUT,	// to device
 } ite_ioctl_type;
 
-extern bool ite_init(ite_dev *const dev);
-extern bool ite_release(ite_dev *const dev);
 extern bool ite_open(ite_dev *const dev, const wchar_t *const path);
 extern bool ite_close(ite_dev *const dev);
-extern bool ite_lock(ite_dev *const dev);
-extern bool ite_unlock(ite_dev *const dev);
-extern bool ite_dev_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const in, const uint32_t in_size, const void *const out, const uint32_t out_size);
 extern bool ite_dev_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const in, const uint32_t in_size, const void *const out, const uint32_t out_size);
-extern bool ite_devctl_nolock(ite_dev *const dev, const ite_ioctl_type type, struct ite_devctl_data *const data);
 extern bool ite_devctl(ite_dev *const dev, const ite_ioctl_type type, struct ite_devctl_data *const data);
-extern bool ite_sat_ioctl_nolock(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const data, const uint32_t data_size);
 extern bool ite_sat_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const data, const uint32_t data_size);
