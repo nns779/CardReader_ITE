@@ -149,11 +149,21 @@ static itecard_status_t _itecard_recv(struct itecard_handle *const handle, uint8
 {
 	struct ite_devctl_data d;
 
+	d.code = ITE_DEVCTL_UART_CHECK_READY;
+
+	if (ite_devctl(&handle->ite, ITE_IOCTL_IN, &d) == false) {
+		internal_err("_itecard_recv: ite_devctl failed 1");
+		return ITECARD_E_FAILED;
+	}
+	else if (d.uart_ready == 0) {
+		return ITECARD_E_NO_DATA;
+	}
+
 	d.code = ITE_DEVCTL_UART_RECV_DATA;
 	d.uart_data.length = *recvLen;
 
 	if (ite_devctl(&handle->ite, ITE_IOCTL_IN, &d) == false) {
-		internal_err("_itecard_recv: ite_devctl failed");
+		internal_err("_itecard_recv: ite_devctl failed 2");
 		return ITECARD_E_FAILED;
 	}
 	else if (d.uart_data.length == 0) {
