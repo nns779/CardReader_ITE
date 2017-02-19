@@ -431,7 +431,7 @@ static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const h
 	return r;
 }
 
-static itecard_status_t _itecard_init(struct itecard_handle *const handle)
+static itecard_status_t _itecard_init(struct itecard_handle *const handle, const bool force)
 {
 	itecard_status_t r = ITECARD_E_INTERNAL, ret;
 	bool b = false;
@@ -451,9 +451,11 @@ static itecard_status_t _itecard_init(struct itecard_handle *const handle)
 		return ITECARD_E_NO_CARD;
 	}
 
-	if (handle->reader->card.atr_len != 0) {
+	if (handle->reader->card.atr_len != 0 && force == false) {
 		return ITECARD_S_FALSE;
 	}
+
+	card_clear(card);
 
 	// reset
 	ret = _itecard_reset(handle);
@@ -505,16 +507,16 @@ itecard_status_t itecard_detect(struct itecard_handle *const handle, bool *const
 // init card
 itecard_status_t itecard_init(struct itecard_handle *const handle)
 {
-	return _itecard_init(handle);
+	return _itecard_init(handle, false);
 }
 
 itecard_status_t itecard_transmit(struct itecard_handle *const handle, const itecard_protocol_t protocol, const uint8_t *const sendBuf, const uint32_t sendLen, uint8_t *const recvBuf, uint32_t *const recvLen)
 {
 	itecard_status_t r = ITECARD_E_INTERNAL, ret;
 
-	ret = _itecard_init(handle);
+	ret = _itecard_init(handle, false);
 	if (ret != ITECARD_S_OK && ret != ITECARD_S_FALSE) {
-		internal_err("itecard_transmit: _itecard_init failed");
+		internal_err("itecard_transmit: _itecard_init failed 1");
 		return ret;
 	}
 
@@ -522,6 +524,18 @@ itecard_status_t itecard_transmit(struct itecard_handle *const handle, const ite
 	{
 	case ITECARD_PROTOCOL_T1:
 		ret = _itecard_transmit_t1_data(handle, 0x00, sendBuf, sendLen, recvBuf, recvLen);
+		if (ret == ITECARD_E_COMM_FAILED)
+		{
+			ret = _itecard_init(handle, true);
+			if (ret != ITECARD_S_OK) {
+				internal_err("itecard_transmit: _itecard_init failed 2");
+				break;
+			}
+			else {
+				ret = _itecard_transmit_t1_data(handle, 0x00, sendBuf, sendLen, recvBuf, recvLen);
+			}
+		}
+
 		if (ret != ITECARD_S_OK) {
 			internal_err("itecard_transmit: _itecard_transmit_t1_data failed (%08X)", ret);
 		}
