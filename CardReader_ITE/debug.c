@@ -42,7 +42,9 @@ void _dbg_write_A(const char *const str, const int c)
 
 void dbg_enable(const bool b)
 {
+#if defined(_DEBUG) || defined(_DEBUG_MSG)
 	enable = b;
+#endif
 }
 
 void dbg_open(const wchar_t *const path)
