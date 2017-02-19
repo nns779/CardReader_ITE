@@ -185,7 +185,11 @@
     <ClInclude Include="ite.h" />
     <ClInclude Include="itecard.h" />
     <ClInclude Include="memory.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="string.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="CardReader_ITE.rc" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
