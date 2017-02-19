@@ -7,6 +7,7 @@
 
 typedef struct _ite_dev {
 	HANDLE dev;
+	bool supported_private_ioctl;
 } ite_dev;
 
 #pragma pack(2)
@@ -157,6 +158,13 @@ struct ite_lnb_data {
 	uint32_t reserved3;
 };
 
+/*
+	KSPROPSETID_ItePrivateControlForDigiBest ({ede22531-92e8-4957-9d05-6f303373e837})
+
+	PropId: 0 (DigiBest Private IO Control)
+	  dword ptr
+*/
+
 #pragma pack()
 
 typedef enum _ite_property_op {
@@ -174,3 +182,6 @@ extern bool ite_close(ite_dev *const dev);
 extern bool ite_dev_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const in, const uint32_t in_size, const void *const out, const uint32_t out_size);
 extern bool ite_devctl(ite_dev *const dev, const ite_ioctl_type type, struct ite_devctl_data *const data);
 extern bool ite_sat_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const data, const uint32_t data_size);
+extern bool ite_private_ioctl(ite_dev *const dev, const ite_ioctl_type type, const uint32_t ioctl_code);
+
+#define ite_v_supported_private_ioctl(dev) ((dev)->supported_private_ioctl)
