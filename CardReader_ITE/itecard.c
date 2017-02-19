@@ -218,7 +218,7 @@ static itecard_status_t _itecard_get_atr(struct itecard_handle *const handle)
 	return ITECARD_S_OK;
 }
 
-static itecard_status_t _itecard_transmit_t1(struct itecard_handle *const handle, const uint8_t *const sendBuf, const uint32_t sendLen, uint8_t *const recvBuf, uint32_t *const recvLen)
+static itecard_status_t _itecard_t1_transceive(struct itecard_handle *const handle, const uint8_t *const sendBuf, const uint32_t sendLen, uint8_t *const recvBuf, uint32_t *const recvLen)
 {
 	itecard_status_t ret;
 	struct card_info *card = &handle->reader->card;
@@ -234,7 +234,7 @@ static itecard_status_t _itecard_transmit_t1(struct itecard_handle *const handle
 
 			ret = _itecard_send(handle, sendBuf + pos, send_len);
 			if (ret != ITECARD_S_OK) {
-				internal_err("_itecard_transmit_t1: _itecard_send failed");
+				internal_err("_itecard_t1_transceive: _itecard_send failed");
 				return ret;
 			}
 			pos += send_len;
@@ -280,7 +280,7 @@ static itecard_status_t _itecard_transmit_t1(struct itecard_handle *const handle
 	return (cl == 0) ? ITECARD_E_NO_DATA : ITECARD_S_OK;
 }
 
-static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const handle, const uint8_t code, const uint8_t *const req, const uint32_t req_len, uint8_t *const res, uint32_t *const res_len)
+static itecard_status_t _itecard_t1_transmit(struct itecard_handle *const handle, const uint8_t code, const uint8_t *const req, const uint32_t req_len, uint8_t *const res, uint32_t *const res_len)
 {
 	struct card_info *card = &handle->reader->card;
 
@@ -296,7 +296,7 @@ static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const h
 
 		r = card_T1MakeBlock(card, block, code, req, req_len & 0xff);
 		if (r == -1) {
-			internal_err("_itecard_transmit_t1_data: card_T1MakeBlock failed");
+			internal_err("_itecard_t1_transmit: card_T1MakeBlock failed");
 			return ITECARD_E_INTERNAL;
 		}
 
@@ -320,14 +320,14 @@ static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const h
 			uint8_t res[254];
 			uint32_t res_len = 254;
 
-			ret = _itecard_transmit_t1_data(handle, 0xC1, &ifsd, sizeof(ifsd), res, &res_len);
+			ret = _itecard_t1_transmit(handle, 0xC1, &ifsd, sizeof(ifsd), res, &res_len);
 			if (ret != ITECARD_S_OK) {
-				dbg("_itecard_transmit_t1_data: IFS request failed");
+				dbg("_itecard_t1_transmit: IFS request failed");
 				r = ret;
 				break;
 			}
 			else if (res[0] != 254) {
-				dbg("_itecard_transmit_t1_data: IFSD != 254");
+				dbg("_itecard_t1_transmit: IFSD != 254");
 				r = ITECARD_E_FAILED;
 				break;
 			}
@@ -338,7 +338,7 @@ static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const h
 		uint8_t recv_block[259];
 		uint32_t recv_len = 259;
 
-		ret = _itecard_transmit_t1(handle, p, 4 + p[2], recv_block, &recv_len);
+		ret = _itecard_t1_transceive(handle, p, 4 + p[2], recv_block, &recv_len);
 		if (ret == ITECARD_S_OK)
 		{
 			bool edc, rblock = false;
@@ -369,18 +369,18 @@ static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const h
 				}
 				else {
 					// R-Block from card
-					dbg("_itecard_transmit_t1_data: R-Block");
+					dbg("_itecard_t1_transmit: R-Block");
 					rblock = true;
 				}
 			}
 			else {
-				internal_err("_itecard_transmit_t1_data: block error");
+				internal_err("_itecard_t1_transmit: block error");
 			}
 
 			retry_count++;
 
 			if (retry_count > 3) {
-				internal_err("_itecard_transmit_t1_data: retry_count >= 3");
+				internal_err("_itecard_t1_transmit: retry_count >= 3");
 				r = ITECARD_E_COMM_FAILED;
 				break;
 			}
@@ -391,9 +391,9 @@ static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const h
 				uint8_t res[254];
 				uint32_t res_len = 254;
 
-				ret = _itecard_transmit_t1_data(handle, 0xC0, NULL, 0, res, &res_len);
+				ret = _itecard_t1_transmit(handle, 0xC0, NULL, 0, res, &res_len);
 				if (ret != ITECARD_S_OK) {
-					dbg("_itecard_transmit_t1_data: RESYNCH request failed");
+					dbg("_itecard_t1_transmit: RESYNCH request failed");
 					r = ret;
 					break;
 				}
@@ -417,12 +417,12 @@ static itecard_status_t _itecard_transmit_t1_data(struct itecard_handle *const h
 			continue;
 		}
 		else if (ret == ITECARD_E_NO_DATA) {
-			internal_err("_itecard_transmit_t1_data: no data");
+			internal_err("_itecard_t1_transmit: no data");
 			r = ITECARD_E_COMM_FAILED;
 			break;
 		}
 		else {
-			internal_err("_itecard_transmit_t1_data: _itecard_transmit_t1 failed");
+			internal_err("_itecard_t1_transmit: _itecard_t1_transceive failed");
 			r = ret;
 			break;
 		}
@@ -523,7 +523,7 @@ itecard_status_t itecard_transmit(struct itecard_handle *const handle, const ite
 	switch (protocol)
 	{
 	case ITECARD_PROTOCOL_T1:
-		ret = _itecard_transmit_t1_data(handle, 0x00, sendBuf, sendLen, recvBuf, recvLen);
+		ret = _itecard_t1_transmit(handle, 0x00, sendBuf, sendLen, recvBuf, recvLen);
 		if (ret == ITECARD_E_COMM_FAILED)
 		{
 			ret = _itecard_init(handle, true);
@@ -532,12 +532,12 @@ itecard_status_t itecard_transmit(struct itecard_handle *const handle, const ite
 				break;
 			}
 			else {
-				ret = _itecard_transmit_t1_data(handle, 0x00, sendBuf, sendLen, recvBuf, recvLen);
+				ret = _itecard_t1_transmit(handle, 0x00, sendBuf, sendLen, recvBuf, recvLen);
 			}
 		}
 
 		if (ret != ITECARD_S_OK) {
-			internal_err("itecard_transmit: _itecard_transmit_t1_data failed (%08X)", ret);
+			internal_err("itecard_transmit: _itecard_t1_transmit failed (%08X)", ret);
 		}
 		break;
 
