@@ -36,6 +36,17 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 		goto end2;
 	}
 
+	// set power
+	if (ite_v_supported_private_ioctl(ite) == true) {
+		dbg("itecard_open: private ioctl is supported");
+		ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
+		ite_private_ioctl(ite, ITE_IOCTL_OUT, 2);
+		ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
+	}
+	else {
+		dbg("itecard_open: private ioctl is not supported");
+	}
+
 	if (exclusive == true) {
 		reader->exclusive = 1;
 	}
