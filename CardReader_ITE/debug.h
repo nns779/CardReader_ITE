@@ -2,6 +2,7 @@
 
 #pragma once
 
+extern void dbg_enable(const bool b);
 extern void dbg_open(const wchar_t *const path);
 extern void dbg_close();
 extern void dbg_wprintf(const wchar_t *const format, ...);

@@ -1,5 +1,6 @@
 // debug.c
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -7,6 +8,7 @@
 
 #if defined(_DEBUG) || defined(_DEBUG_MSG)
 
+static bool enable = false;
 static HANDLE _hFile = INVALID_HANDLE_VALUE;
 
 void _dbg_write_W(const wchar_t *const str, const int c)
@@ -38,9 +40,17 @@ void _dbg_write_A(const char *const str, const int c)
 
 #endif
 
+void dbg_enable(const bool b)
+{
+	enable = b;
+}
+
 void dbg_open(const wchar_t *const path)
 {
 #if defined(_DEBUG) || defined(_DEBUG_MSG)
+	if (enable == false)
+		return;
+
 	if (_hFile == INVALID_HANDLE_VALUE) {
 		_hFile = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	}
@@ -60,6 +70,9 @@ void dbg_close()
 void dbg_wprintf(const wchar_t *const format, ...)
 {
 #if defined(_DEBUG) || defined(_DEBUG_MSG)
+	if (enable == false)
+		return;
+
 	va_list args;
 	wchar_t buf[0x400];
 	int c;
@@ -76,6 +89,9 @@ void dbg_wprintf(const wchar_t *const format, ...)
 void dbg_printf(const char *const format, ...)
 {
 #if defined(_DEBUG) || defined(_DEBUG_MSG)
+	if (enable == false)
+		return;
+
 	va_list args;
 	char buf[0x400];
 	int c;
@@ -92,6 +108,9 @@ void dbg_printf(const char *const format, ...)
 void win32_err(const char *const str)
 {
 #if defined(_DEBUG) || defined(_DEBUG_MSG)
+	if (enable == false)
+		return;
+
 	DWORD e = GetLastError();
 	void *buf = NULL;
 

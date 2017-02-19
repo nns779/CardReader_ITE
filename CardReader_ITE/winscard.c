@@ -566,9 +566,14 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		friendlyNameLen = GetPrivateProfileStringW(L"Setting", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
 
-		if (GetPrivateProfileIntW(L"Setting", L"DebugLog", 0, path) != 0) {
-			memcpy(path + ret - 3, L"log", 3 * sizeof(wchar_t));
-			dbg_open(path);
+		if (GetPrivateProfileIntW(L"Debug", L"Logging", 0, path) != 0)
+		{
+			dbg_enable(true);
+
+			if (GetPrivateProfileIntW(L"Debug", L"OutputToFile", 0, path) != 0) {
+				memcpy(path + ret - 3, L"log", 3 * sizeof(wchar_t));
+				dbg_open(path);
+			}
 		}
 
 		if (devdb_open(&_devdb_ite, friendlyName, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
