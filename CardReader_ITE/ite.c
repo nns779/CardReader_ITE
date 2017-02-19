@@ -59,7 +59,7 @@ static bool _is_supported(ite_dev *const dev, const GUID *const guid, uint32_t i
 	*supported = false;
 
 	KSPROPERTY prop;
-	ULONG rd, rb = 0;
+	ULONG rd = 0, rb = 0;
 	OVERLAPPED overlapped;
 
 	prop.Set = *guid;
