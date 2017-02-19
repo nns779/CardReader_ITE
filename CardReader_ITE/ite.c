@@ -11,36 +11,7 @@
 static const GUID KSPROPSETID_IteDevice = { 0xc6efe5eb, 0x855a, 0x4f1b, { 0xb7, 0xaa, 0x87, 0xb5, 0xe1, 0xdc, 0x41, 0x13} };
 static const GUID KSPROPSETID_IteDeviceControl = { 0xf23fac2d, 0xe1af, 0x48e0, { 0x8b, 0xbe, 0xa1, 0x40, 0x29, 0xc9, 0x2f, 0x11 } };
 static const GUID KSPROPSETID_IteSatControl = { 0xf23fac2d, 0xe1af, 0x48e0, { 0x8b, 0xbe, 0xa1, 0x40, 0x29, 0xc9, 0x2f, 0x21 } };
-
-bool ite_open(ite_dev *const dev, const wchar_t *const path)
-{
-	HANDLE device;
-
-	if (ite_close(dev) == false) {
-		internal_err("ite_open: ite_close failed");
-		return false;
-	}
-
-	device = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
-	if (device == INVALID_HANDLE_VALUE) {
-		win32_err("ite_open: CreateFileW");
-		return false;
-	}
-
-	dev->dev = device;
-
-	return true;
-}
-
-bool ite_close(ite_dev *const dev)
-{
-	if (dev->dev != INVALID_HANDLE_VALUE) {
-		CloseHandle(dev->dev);
-		dev->dev = INVALID_HANDLE_VALUE;
-	}
-
-	return true;
-}
+static const GUID KSPROPSETID_ItePrivateControlForDigiBest = { 0xede22531, 0x92e8, 0x4957, { 0x9d, 0x05, 0x6f, 0x30, 0x33, 0x73, 0xe8, 0x37 } };
 
 static bool _init_overlapped(OVERLAPPED *const overlapped)
 {
@@ -81,6 +52,79 @@ static bool _dev_io_control(ite_dev *const dev, DWORD dwIoControlCode, LPVOID lp
 	ResetEvent(lpOverlapped->hEvent);
 
 	return (ret == FALSE) ? false : true;
+}
+
+static bool _is_supported(ite_dev *const dev, const GUID *const guid, uint32_t id, bool *const supported)
+{
+	*supported = false;
+
+	KSPROPERTY prop;
+	ULONG rd, rb = 0;
+	OVERLAPPED overlapped;
+
+	prop.Set = *guid;
+	prop.Id = id;
+	prop.Flags = KSPROPERTY_TYPE_BASICSUPPORT;
+
+	if (_init_overlapped(&overlapped) == false) {
+		internal_err("_is_supported: _init_overlapped failed");
+		return false;
+	}
+
+	bool r = false;
+
+	if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void *)&rd, sizeof(rd), &rb, &overlapped) == false) {
+		internal_err("_is_supported: _dev_io_control failed ");
+	}
+	else if (rb != sizeof(rd)) {
+		internal_err("_is_supported: data lost");
+	}
+	else {
+		*supported = (!rd) ? false : true;
+		r = true;
+	}
+
+	_release_overlapped(&overlapped);
+
+	return r;
+}
+
+bool ite_open(ite_dev *const dev, const wchar_t *const path)
+{
+	HANDLE device;
+
+	if (ite_close(dev) == false) {
+		internal_err("ite_open: ite_close failed");
+		return false;
+	}
+
+	device = CreateFileW(path, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, NULL);
+	if (device == INVALID_HANDLE_VALUE) {
+		win32_err("ite_open: CreateFileW");
+		return false;
+	}
+
+	dev->dev = device;
+
+	bool b;
+
+	if (_is_supported(dev, &KSPROPSETID_ItePrivateControlForDigiBest, 0, &b) == true && b == true) {
+		dev->supported_private_ioctl = true;
+	}
+
+	return true;
+}
+
+bool ite_close(ite_dev *const dev)
+{
+	if (dev->dev != INVALID_HANDLE_VALUE) {
+		CloseHandle(dev->dev);
+		dev->dev = INVALID_HANDLE_VALUE;
+	}
+
+	dev->supported_private_ioctl = false;
+
+	return true;
 }
 
 bool ite_dev_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type type, const void *const in, const uint32_t in_size, const void *const out, const uint32_t out_size)
@@ -176,6 +220,43 @@ bool ite_sat_ioctl(ite_dev *const dev, const uint32_t code, const ite_ioctl_type
 			internal_err("ite_sat_ioctl: _dev_io_control failed (Property SET)");
 			r = false;
 		}
+	}
+	else {
+		r = false;
+	}
+
+	_release_overlapped(&overlapped);
+
+	return r;
+}
+
+bool ite_private_ioctl(ite_dev *const dev, const ite_ioctl_type type, const uint32_t ioctl_code)
+{
+	KSPROPERTY prop;
+	ULONG rb = 0;
+	OVERLAPPED overlapped;
+
+	prop.Set = KSPROPSETID_ItePrivateControlForDigiBest;
+	prop.Id = 0;
+
+	if (_init_overlapped(&overlapped) == false) {
+		internal_err("ite_private_ioctl: _init_overlapped failed");
+		return false;
+	}
+
+	bool r = true;
+
+	if (type == ITE_IOCTL_OUT)
+	{
+		prop.Flags = KSPROPERTY_TYPE_SET;
+
+		if (_dev_io_control(dev, IOCTL_KS_PROPERTY, (void *)&prop, sizeof(prop), (void*)&ioctl_code, sizeof(uint32_t), &rb, &overlapped) == false) {
+			internal_err("ite_private_ioctl: _dev_io_control failed (Property SET)");
+			r = false;
+		}
+	}
+	else {
+		r = false;
 	}
 
 	_release_overlapped(&overlapped);
