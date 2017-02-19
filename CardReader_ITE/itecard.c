@@ -249,7 +249,7 @@ static itecard_status_t _itecard_t1_transceive(struct itecard_handle *const hand
 	uint32_t cl;
 
 	wt = micro2milli(card->T1.BWT - card->T1.BGT);
-	st = micro2milli(card->etu * 32);
+	st = micro2milli(card->etu * 96);
 	ct = 0;
 	cl = 0;
 
