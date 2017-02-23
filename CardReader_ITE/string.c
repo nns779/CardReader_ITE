@@ -211,3 +211,14 @@ uint32_t strFromUInt32(char *const str, const size_t size, const uint32_t ui32, 
 
 	return (uint32_t)(d - d2);
 }
+
+wchar_t * wstrGetWCharPtr(const wchar_t *const str, const wchar_t ch)
+{
+	wchar_t *p = (wchar_t *)str;
+
+	while (*p && (*p - ch)) {
+		p++;
+	}
+
+	return (*p - ch) ? NULL : p;
+}
