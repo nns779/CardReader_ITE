@@ -239,9 +239,6 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 
 	itecard_protocol_t protocol = ITECARD_PROTOCOL_UNDEFINED;
 
-	if (dwPreferredProtocols & SCARD_PROTOCOL_T0)
-		protocol |= ITECARD_PROTOCOL_T0;
-
 	if (dwPreferredProtocols & SCARD_PROTOCOL_T1)
 		protocol |= ITECARD_PROTOCOL_T1;
 
@@ -284,9 +281,6 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 		goto end2;
 	}
 
-	if ((dwPreferredProtocols & SCARD_PROTOCOL_T0) && (reader->card.T0.b == true))
-		*pdwActiveProtocol |= SCARD_PROTOCOL_T0;
-
 	if ((dwPreferredProtocols & SCARD_PROTOCOL_T1) && (reader->card.T1.b == true))
 		*pdwActiveProtocol |= SCARD_PROTOCOL_T1;
 
@@ -305,7 +299,7 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 	return SCARD_S_SUCCESS;
 
 end2:
-	itecard_close(&handle->itecard, false, false);
+	itecard_close(&handle->itecard, true, (devinfo->ref == 0) ? true : false);
 end1:
 	return r;
 }
@@ -441,9 +435,6 @@ static LONG _get_card_status(struct _handle *const handle, LPDWORD pdwState, LPD
 		else if (ret == ITECARD_S_OK || ret == ITECARD_S_FALSE)
 		{
 			DWORD protocol = SCARD_PROTOCOL_UNDEFINED;
-
-			if ((itecard->protocol & ITECARD_PROTOCOL_T0) && (itecard->reader->card.T0.b == true))
-				protocol |= SCARD_PROTOCOL_T0;
 
 			if ((itecard->protocol & ITECARD_PROTOCOL_T1) && (itecard->reader->card.T1.b == true))
 				protocol |= SCARD_PROTOCOL_T1;
@@ -1311,7 +1302,12 @@ end2:
 		if (pcbAtrLen != NULL)
 		{
 			if (pbAtr != NULL) {
-				memset(pbAtr, 0, 32);
+				if (*pcbAtrLen == SCARD_AUTOALLOCATE) {
+					*((LPBYTE *)pbAtr) = NULL;
+				}
+				else {
+					memset(pbAtr, 0, *pcbAtrLen);
+				}
 			}
 			*pcbAtrLen = 0;
 		}
@@ -1426,7 +1422,12 @@ end2:
 		if (pcbAtrLen != NULL)
 		{
 			if (pbAtr != NULL) {
-				memset(pbAtr, 0, 32);
+				if (*pcbAtrLen == SCARD_AUTOALLOCATE) {
+					*((LPBYTE *)pbAtr) = NULL;
+				}
+				else {
+					memset(pbAtr, 0, *pcbAtrLen);
+				}
 			}
 			*pcbAtrLen = 0;
 		}
