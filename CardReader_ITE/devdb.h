@@ -8,6 +8,7 @@
 #define DEVDB_MAX_DEV_NUM		8
 #define DEVDB_MAX_DEV_REF_NUM	16
 #define DEVDB_MAX_PATH_SIZE		512
+#define DEVDB_MAX_ID_SIZE		64
 #define DEVDB_MAX_NAME_SIZE		128
 
 #pragma pack(1)
@@ -15,6 +16,7 @@
 struct devdb_shared_devinfo
 {
 	wchar_t path[DEVDB_MAX_PATH_SIZE];
+	wchar_t id[DEVDB_MAX_ID_SIZE];
 	uint32_t ref;
 	uint32_t clear;
 	uint8_t user[4];
@@ -41,6 +43,7 @@ typedef struct _devdb
 	HANDLE shmem;
 	struct devdb_shared_info *info;
 	wchar_t name[DEVDB_MAX_NAME_SIZE];
+	wchar_t id[DEVDB_MAX_ID_SIZE];
 } devdb;
 
 typedef enum
@@ -57,7 +60,7 @@ typedef enum
 
 typedef int(*devdb_enum_callback)(devdb *const db, const uint32_t id, const struct devdb_shared_devinfo *const devinfo, void *prm);
 
-extern devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const uint32_t user_size);
+extern devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const wchar_t *const id, const uint32_t user_size);
 extern devdb_status_t devdb_close(devdb *const db);
 extern void devdb_lock(devdb *const db);
 extern void devdb_unlock(devdb *const db);

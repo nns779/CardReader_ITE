@@ -17,20 +17,27 @@ static const wchar_t event_name[] = L"devdb_" DEVDB_UNIQUE_NAME L"_event_";
 static const wchar_t shmem_name[] = L"devdb_" DEVDB_UNIQUE_NAME L"_shmem_";
 static const wchar_t devdb_guid[] = L"_{5EFFECB0-706A-4ED7-B944-9C65B3BE1722}";
 
-#define DEVDB_SHARED_INFO_SIGNATURE	0x9F33B27C
+#define DEVDB_SHARED_INFO_SIGNATURE	0xC3EA928A
 
 #define make_obj_name(buf, name1, name1_len, name2) \
 	memcpy((buf), (name2), sizeof((name2)) - (1 * sizeof(wchar_t))); \
 	memcpy((buf) + ((sizeof((name2)) / sizeof(wchar_t)) - 1), (name1), (name1_len) * sizeof(wchar_t)); \
 	memcpy((buf) + ((sizeof((name2)) / sizeof(wchar_t)) - 1) + (name1_len), devdb_guid, sizeof(devdb_guid))
 
-devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const uint32_t user_size)
+devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const wchar_t *const id, const uint32_t user_size)
 {
 	uint32_t name_len;
+	uint32_t id_len;
 
 	name_len = wstrLen(name);
-	if (name_len >= 128) {
-		internal_err("devdb_open: name_len >= 128");
+	if (name_len >= DEVDB_MAX_NAME_SIZE) {
+		internal_err("devdb_open: name_len >= DEVDB_MAX_NAME_SIZE");
+		return DEVDB_E_INVALID_PARAMETER;
+	}
+
+	id_len = wstrLen(id);
+	if (id_len >= DEVDB_MAX_ID_SIZE) {
+		internal_err("devdb_open: id_len >= DEVDB_MAX_ID_SIZE");
 		return DEVDB_E_INVALID_PARAMETER;
 	}
 
@@ -113,6 +120,7 @@ devdb_status_t devdb_open(devdb *const db, const wchar_t *const name, const uint
 	db->shmem = shmem;
 	db->info = info;
 	memcpy(db->name, name, (name_len + 1) * sizeof(wchar_t));
+	memcpy(db->id, id, (id_len + 1) * sizeof(wchar_t));
 
 	return DEVDB_S_OK;
 
@@ -195,6 +203,48 @@ void devdb_unlock(devdb *const db)
 	return;
 }
 
+bool _devdb_parse_interface_path(const wchar_t *const path, wchar_t *const id)
+{
+	wchar_t *p;
+
+	p = wstrGetWCharPtr(path, L'\\');
+	if (p == NULL) {
+		return false;
+	}
+
+	if (wstrCompareN(p, L"\\\\?\\", 4) == false) {
+		return false;
+	}
+
+	// usb#vid_vvvv
+	p = wstrGetWCharPtr(p + 4, L'#');
+	if (p == NULL) {
+		return false;
+	}
+
+	// &pid_pppp#ssssss
+	p = wstrGetWCharPtr(p + 1, L'#');
+	if (p == NULL || *++p == L'#') {
+		return false;
+	}
+
+	wchar_t *p2;
+
+	// ssssss#{xxxxxxxx
+	p2 = wstrGetWCharPtr(p + 1, L'#');
+	if (p2 == NULL) {
+		return false;
+	}
+
+	if ((p2 - p) >= DEVDB_MAX_ID_SIZE)
+		return false;
+
+	// ssssss
+	wstrCopyN(id, p, (p2 - p));
+
+	return true;
+}
+
 devdb_status_t devdb_update_nolock(devdb *const db)
 {
 	dbg("devdb_update_nolock");
@@ -203,7 +253,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 
 	devInfo = SetupDiGetClassDevsW(&(const GUID) { DEVDB_DEVICE_CLASS }, NULL, NULL, DIGCF_DEVICEINTERFACE | DIGCF_PRESENT);
 	if (devInfo == INVALID_HANDLE_VALUE) {
-		win32_err("devdb_update: SetupDiGetClassDevsW");
+		win32_err("devdb_update_nolock: SetupDiGetClassDevsW");
 		return DEVDB_E_API;
 	}
 
@@ -212,7 +262,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 
 	detailDataArray = memAlloc(sizeof(PSP_DEVICE_INTERFACE_DETAIL_DATA_W) * db->info->count);
 	if (detailDataArray == NULL) {
-		internal_err("devdb_update: memAlloc failed 1");
+		internal_err("devdb_update_nolock: memAlloc failed 1");
 		SetupDiDestroyDeviceInfoList(devInfo);
 		return DEVDB_E_NO_MEMORY;
 	}
@@ -229,7 +279,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 
 		detailData = memAlloc(sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) + sizeof(WCHAR) * (512 - ANYSIZE_ARRAY));
 		if (detailData == NULL) {
-			internal_err("devdb_update: memAlloc failed 2");
+			internal_err("devdb_update_nolock: memAlloc failed 2");
 			r = DEVDB_E_NO_MEMORY;
 			break;
 		}
@@ -237,7 +287,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 		detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W);
 
 		if (SetupDiGetDeviceInterfaceDetailW(devInfo, &interfaceData, detailData, sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_W) + sizeof(WCHAR) * (512 - ANYSIZE_ARRAY), NULL, NULL) == FALSE) {
-			win32_err("devdb_update: SetupDiGetDeviceInterfaceDetailW");
+			win32_err("devdb_update_nolock: SetupDiGetDeviceInterfaceDetailW");
 			memFree(detailData);
 			i++;
 			continue;
@@ -247,7 +297,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 
 		hKey = SetupDiOpenDeviceInterfaceRegKey(devInfo, &interfaceData, 0, KEY_READ);
 		if (hKey == INVALID_HANDLE_VALUE) {
-			win32_err("devdb_update: SetupDiOpenDeviceInterfaceRegKey");
+			win32_err("devdb_update_nolock: SetupDiOpenDeviceInterfaceRegKey");
 			memFree(detailData);
 			i++;
 			continue;
@@ -260,10 +310,10 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 		ls = RegQueryValueEx(hKey, L"FriendlyName", NULL, &type, (LPBYTE)fn, &size);
 		CloseHandle(hKey);
 		if (ls != ERROR_SUCCESS) {
-			win32_err("devdb_update: RegQueryValueExW");
+			win32_err("devdb_update_nolock: RegQueryValueExW");
 		}
 		else if (type != REG_SZ) {
-			internal_err("devdb_update: RegQueryValueExW: type != REG_SZ");
+			internal_err("devdb_update_nolock: RegQueryValueExW: type != REG_SZ");
 		}
 		else
 		{
@@ -274,7 +324,7 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 			}
 
 			if (detailDataIndex >= detailDataMaxIndex) {
-				internal_err("devdb_update: internal limit");
+				internal_err("devdb_update_nolock: internal limit");
 				memFree(detailData);
 				break;
 			}
@@ -338,7 +388,12 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 
 				if (wstrIsEmpty(devinfo->path))
 				{
-					wstrCopyN(devinfo->path, detailDataArray[j]->DevicePath, 512);
+					if (_devdb_parse_interface_path(detailDataArray[j]->DevicePath, devinfo->id) == true) {
+						wstrCopyN(devinfo->path, detailDataArray[j]->DevicePath, 512);
+					}
+					else {
+						dbg("devdb_update_nolock: _devdb_parse_interface_path failed");
+					}
 					memFree(detailDataArray[j]);
 					detailDataArray[j] = NULL;
 					lid = k + 1;
@@ -374,6 +429,7 @@ devdb_status_t devdb_update(devdb *const db)
 }
 
 #define _devdb_get_shared_devinfo(db, id) ((struct devdb_shared_devinfo *)(((uint8_t *)((db)->info->dev)) + ((db)->info->size * (id))))
+#define _devdb_is_valid_devinfo(db, devinfo) (!wstrIsEmpty((devinfo)->path) && (wstrIsEmpty((db)->id) || wstrCompare((db)->id, (devinfo)->id) == true))
 
 devdb_status_t devdb_enum_nolock(devdb *const db, const devdb_enum_callback callback, void *prm)
 {
@@ -383,7 +439,7 @@ devdb_status_t devdb_enum_nolock(devdb *const db, const devdb_enum_callback call
 	{
 		struct devdb_shared_devinfo *devinfo = _devdb_get_shared_devinfo(db, i);
 
-		if (!wstrIsEmpty(devinfo->path))
+		if (_devdb_is_valid_devinfo(db, devinfo))
 		{
 			r = DEVDB_S_OK;
 
@@ -418,7 +474,7 @@ devdb_status_t devdb_get_shared_devinfo_nolock(devdb *const db, const uint32_t i
 
 	di = _devdb_get_shared_devinfo(db, id);
 
-	if (wstrIsEmpty(di->path))
+	if (!_devdb_is_valid_devinfo(db, di))
 	{
 		devdb_status_t r;
 
@@ -426,7 +482,7 @@ devdb_status_t devdb_get_shared_devinfo_nolock(devdb *const db, const uint32_t i
 		if (r != DEVDB_S_OK)
 			return r;
 
-		if (wstrIsEmpty(di->path)) {
+		if (!_devdb_is_valid_devinfo(db, di)) {
 			return DEVDB_E_DEVICE_NOT_FOUND;
 		}
 	}
