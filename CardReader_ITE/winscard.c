@@ -540,6 +540,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		DWORD ret;
 		wchar_t friendlyName[128];
 		uint32_t friendlyNameLen;
+		wchar_t uniqueID[DEVDB_MAX_ID_SIZE];
 
 		ret = GetModuleFileNameW(hinstDLL, path, MAX_PATH + 1);
 		if (ret == 0 || wstrCompare(path + ret - 4, L".dll") == false) {
@@ -557,6 +558,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		friendlyNameLen = GetPrivateProfileStringW(L"Setting", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
 
+		GetPrivateProfileStringW(L"Setting", L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
+
 		if (GetPrivateProfileIntW(L"Debug", L"Logging", 0, path) != 0)
 		{
 			dbg_enable(true);
@@ -567,7 +570,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			}
 		}
 
-		if (devdb_open(&_devdb_ite, friendlyName, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
+		if (devdb_open(&_devdb_ite, friendlyName, uniqueID, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
 			dbg_close();
 			memDeinit();
 			return FALSE;
