@@ -560,7 +560,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		GetPrivateProfileStringW(L"Setting", L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
 
-		if (GetPrivateProfileIntW(L"Debug", L"Logging", 0, path) != 0)
+		if (GetPrivateProfileIntW(L"Debug", L"Enable", 0, path) != 0)
 		{
 			dbg_enable(true);
 
