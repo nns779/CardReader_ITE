@@ -429,7 +429,7 @@ devdb_status_t devdb_update(devdb *const db)
 }
 
 #define _devdb_get_shared_devinfo(db, id) ((struct devdb_shared_devinfo *)(((uint8_t *)((db)->info->dev)) + ((db)->info->size * (id))))
-#define _devdb_is_valid_devinfo(db, devinfo) (!wstrIsEmpty((devinfo)->path) && (wstrIsEmpty((db)->id) || wstrCompare((db)->id, (devinfo)->id) == true))
+#define _devdb_is_valid_devinfo(db, devinfo) (!wstrIsEmpty((devinfo)->path) && (wstrIsEmpty((db)->id) || wstrCompareEx((devinfo)->id, (db)->id, L'*') == true))
 
 devdb_status_t devdb_enum_nolock(devdb *const db, const devdb_enum_callback callback, void *prm)
 {
