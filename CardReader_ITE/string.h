@@ -8,8 +8,10 @@
 
 extern bool wstrCompare(const wchar_t *const str1, const wchar_t *const str2);
 extern bool strCompare(const char *const str1, const char *const str2);
+extern bool wstrCompareEx(const wchar_t *const str1, const wchar_t *const str2, const wchar_t skip_ch);
 extern bool wstrCompareN(const wchar_t *const str1, const wchar_t *const str2, const size_t count);
 extern bool strCompareN(const char *const str1, const char *const str2, const size_t count);
+extern bool wstrMatch(const wchar_t *const str1, const wchar_t *const str2, const wchar_t skip_ch);
 extern uint32_t wstrLen(const wchar_t *const str);
 extern uint32_t strLen(const char *const str);
 extern void wstrCopy(wchar_t *const dst, const wchar_t *const src);
