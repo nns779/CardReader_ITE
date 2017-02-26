@@ -444,7 +444,7 @@ static itecard_status_t _itecard_t1_transmit(struct itecard_handle *const handle
 
 static itecard_status_t _itecard_init(struct itecard_handle *const handle, const bool force)
 {
-	itecard_status_t r = ITECARD_E_INTERNAL, ret;
+	itecard_status_t ret;
 	bool b = false;
 	struct card_info *card = &handle->reader->card;
 
@@ -477,27 +477,39 @@ static itecard_status_t _itecard_init(struct itecard_handle *const handle, const
 
 	Sleep(10);
 
-	card_init(card);
+	int i = 3;
 
-	// get atr
-	ret = _itecard_get_atr(handle);
-	if (ret != ITECARD_S_OK) {
-		internal_err("_itecard_init: _itecard_get_atr failed");
+	do
+	{
+		card_init(card);
+
+		// get atr
+		ret = _itecard_get_atr(handle);
+		if (ret != ITECARD_S_OK) {
+			internal_err("_itecard_init: _itecard_get_atr failed (%d)", i);
+			continue;
+		}
+
+		if (card->atr_len == 0) {
+			internal_err("_itecard_init: unresponsive card (%d)", i);
+			card_clear(card);
+			ret = ITECARD_E_UNRESPONSIVE_CARD;
+			continue;
+		}
+
+		// parse atr
+		if (card_parseATR(card) == false) {
+			internal_err("_itecard_init: unsupported card (%d)", i);
+			card_clear(card);
+			ret = ITECARD_E_UNSUPPORTED_CARD;
+			continue;
+		}
+
+		break;
+	} while (--i);
+
+	if (!i)
 		return ret;
-	}
-
-	if (card->atr_len == 0) {
-		internal_err("_itecard_init: unresponsive card");
-		card_clear(card);
-		return ITECARD_E_UNRESPONSIVE_CARD;
-	}
-
-	// parse atr
-	if (card_parseATR(card) == false) {
-		internal_err("_itecard_init: unsupported card");
-		card_clear(card);
-		return ITECARD_E_UNSUPPORTED_CARD;
-	}
 
 	// set baudrate
 	ret = _itecard_set_baudrate(handle, 19200);
@@ -523,7 +535,7 @@ itecard_status_t itecard_init(struct itecard_handle *const handle)
 
 itecard_status_t itecard_transmit(struct itecard_handle *const handle, const itecard_protocol_t protocol, const uint8_t *const sendBuf, const uint32_t sendLen, uint8_t *const recvBuf, uint32_t *const recvLen)
 {
-	itecard_status_t r = ITECARD_E_INTERNAL, ret;
+	itecard_status_t ret;
 
 	ret = _itecard_init(handle, false);
 	if (ret != ITECARD_S_OK && ret != ITECARD_S_FALSE) {

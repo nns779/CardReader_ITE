@@ -24,6 +24,16 @@ bool strCompare(const char *const str1, const char *const str2)
 	return (!(*s1 - *s2)) ? true : false;
 }
 
+bool wstrCompareEx(const wchar_t *const str1, const wchar_t *const str2, const wchar_t skip_ch)
+{
+	wchar_t *s1 = (wchar_t *)str1, *s2 = (wchar_t *)str2;
+
+	while (*s1 && (!(*s1 - *s2) || !(*s2 - skip_ch)))
+		s1++, s2++;
+
+	return (!(*s1 - *s2)) ? true : false;
+}
+
 bool wstrCompareN(const wchar_t *const str1, const wchar_t *const str2, const size_t count)
 {
 	wchar_t *s1 = (wchar_t *)str1, *s2 = (wchar_t *)str2;
@@ -46,6 +56,43 @@ bool strCompareN(const char *const str1, const char *const str2, const size_t co
 	}
 
 	return (!n || !(*s1 - *s2)) ? true : false;
+}
+
+bool wstrMatch(const wchar_t *const str1, const wchar_t *const str2, const wchar_t skip_ch)
+{
+	wchar_t *s1 = (wchar_t *)str1, *s2 = (wchar_t *)str2;
+
+	while (*s1)
+	{
+		if (!(*s2 - skip_ch))
+		{
+			s2++;
+
+			while (*s2 && !(*s2 - skip_ch))
+				s2++;
+
+			if (!*s2) {
+				return true;
+			}
+
+			while (*s1 && (*s1 - *s2))
+				s1++;
+		}
+
+		wchar_t *t = s1;
+
+		while (*s1 && !(*s1 - *s2))
+			s1++, s2++;
+
+		if (!(t - s1)) {
+			break;
+		}
+		else if (!(*s1 - *s2)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 uint32_t wstrLen(const wchar_t *const str)
@@ -210,4 +257,15 @@ uint32_t strFromUInt32(char *const str, const size_t size, const uint32_t ui32, 
 	} while (v);
 
 	return (uint32_t)(d - d2);
+}
+
+wchar_t * wstrGetWCharPtr(const wchar_t *const str, const wchar_t ch)
+{
+	wchar_t *p = (wchar_t *)str;
+
+	while (*p && (*p - ch)) {
+		p++;
+	}
+
+	return (*p - ch) ? NULL : p;
 }

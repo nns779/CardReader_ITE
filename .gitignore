@@ -23,8 +23,8 @@ bld/
 [Oo]bj/
 
 # Package directory
-[Pp]ackage/[Xx64]/
-[Pp]ackage/[Xx86]/
+[Pp]ackage/[Xx]64/
+[Pp]ackage/[Xx]86/
 
 # Visual Studio 2015 cache/options directory
 .vs/

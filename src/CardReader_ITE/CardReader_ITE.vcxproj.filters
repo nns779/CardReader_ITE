@@ -50,7 +50,7 @@
     <None Include="winscard.def">
       <Filter>ソース ファイル</Filter>
     </None>
-    <None Include="..\package\CardReader_ITE.ini">
+    <None Include="..\..\package\CardReader_ITE.ini">
       <Filter>Package</Filter>
     </None>
   </ItemGroup>
@@ -79,8 +79,16 @@
     <ClInclude Include="memory.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
     <ClInclude Include="string.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="CardReader_ITE.rc">
+      <Filter>ソース ファイル</Filter>
+    </ResourceCompile>
   </ItemGroup>
 </Project>

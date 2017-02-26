@@ -239,9 +239,6 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 
 	itecard_protocol_t protocol = ITECARD_PROTOCOL_UNDEFINED;
 
-	if (dwPreferredProtocols & SCARD_PROTOCOL_T0)
-		protocol |= ITECARD_PROTOCOL_T0;
-
 	if (dwPreferredProtocols & SCARD_PROTOCOL_T1)
 		protocol |= ITECARD_PROTOCOL_T1;
 
@@ -284,9 +281,6 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 		goto end2;
 	}
 
-	if ((dwPreferredProtocols & SCARD_PROTOCOL_T0) && (reader->card.T0.b == true))
-		*pdwActiveProtocol |= SCARD_PROTOCOL_T0;
-
 	if ((dwPreferredProtocols & SCARD_PROTOCOL_T1) && (reader->card.T1.b == true))
 		*pdwActiveProtocol |= SCARD_PROTOCOL_T1;
 
@@ -305,7 +299,7 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 	return SCARD_S_SUCCESS;
 
 end2:
-	itecard_close(&handle->itecard, false, false);
+	itecard_close(&handle->itecard, true, (devinfo->ref == 0) ? true : false);
 end1:
 	return r;
 }
@@ -442,9 +436,6 @@ static LONG _get_card_status(struct _handle *const handle, LPDWORD pdwState, LPD
 		{
 			DWORD protocol = SCARD_PROTOCOL_UNDEFINED;
 
-			if ((itecard->protocol & ITECARD_PROTOCOL_T0) && (itecard->reader->card.T0.b == true))
-				protocol |= SCARD_PROTOCOL_T0;
-
 			if ((itecard->protocol & ITECARD_PROTOCOL_T1) && (itecard->reader->card.T1.b == true))
 				protocol |= SCARD_PROTOCOL_T1;
 
@@ -549,6 +540,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		DWORD ret;
 		wchar_t friendlyName[128];
 		uint32_t friendlyNameLen;
+		wchar_t uniqueID[DEVDB_MAX_ID_SIZE];
 
 		ret = GetModuleFileNameW(hinstDLL, path, MAX_PATH + 1);
 		if (ret == 0 || wstrCompare(path + ret - 4, L".dll") == false) {
@@ -566,7 +558,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		friendlyNameLen = GetPrivateProfileStringW(L"Setting", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
 
-		if (GetPrivateProfileIntW(L"Debug", L"Logging", 0, path) != 0)
+		GetPrivateProfileStringW(L"Setting", L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
+
+		if (GetPrivateProfileIntW(L"Debug", L"Enable", 0, path) != 0)
 		{
 			dbg_enable(true);
 
@@ -576,7 +570,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			}
 		}
 
-		if (devdb_open(&_devdb_ite, friendlyName, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
+		if (devdb_open(&_devdb_ite, friendlyName, uniqueID, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
 			dbg_close();
 			memDeinit();
 			return FALSE;
@@ -1311,7 +1305,12 @@ end2:
 		if (pcbAtrLen != NULL)
 		{
 			if (pbAtr != NULL) {
-				memset(pbAtr, 0, 32);
+				if (*pcbAtrLen == SCARD_AUTOALLOCATE) {
+					*((LPBYTE *)pbAtr) = NULL;
+				}
+				else {
+					memset(pbAtr, 0, *pcbAtrLen);
+				}
 			}
 			*pcbAtrLen = 0;
 		}
@@ -1426,7 +1425,12 @@ end2:
 		if (pcbAtrLen != NULL)
 		{
 			if (pbAtr != NULL) {
-				memset(pbAtr, 0, 32);
+				if (*pcbAtrLen == SCARD_AUTOALLOCATE) {
+					*((LPBYTE *)pbAtr) = NULL;
+				}
+				else {
+					memset(pbAtr, 0, *pcbAtrLen);
+				}
 			}
 			*pcbAtrLen = 0;
 		}
