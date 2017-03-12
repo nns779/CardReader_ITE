@@ -309,7 +309,7 @@ static LONG _disconnect_card(struct _handle *const handle, const bool reset)
 	uint32_t ref;
 	LONG r;
 
-	if (devdb_unref_nolock(&_devdb_ite, handle->id, false, &ref) == DEVDB_S_OK) {
+	if (devdb_unref_nolock(&_devdb_ite, handle->id, &ref) == DEVDB_S_OK) {
 		r = itecard_status_to_scard_status(itecard_close(&handle->itecard, reset, (ref == 0) ? true : false));
 	}
 	else {
