@@ -538,9 +538,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		wchar_t path[MAX_PATH + 1];
 		DWORD ret;
-		wchar_t friendlyName[128];
-		uint32_t friendlyNameLen;
-		wchar_t uniqueID[DEVDB_MAX_ID_SIZE];
 
 		ret = GetModuleFileNameW(hinstDLL, path, MAX_PATH + 1);
 		if (ret == 0 || wstrCompare(path + ret - 4, L".dll") == false) {
@@ -549,16 +546,26 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		memcpy(path + ret - 3, L"ini", 3 * sizeof(wchar_t));
 
-		_reader_len_W = GetPrivateProfileStringW(L"Setting", L"ReaderName", L"ITE ICC Reader", _reader_W, 128, path);
+		uintptr_t max_ctx, max_card;
+
+		max_ctx = GetPrivateProfileIntW(L"ResourceManager", L"MaxContextNum", 32, path);
+		max_card = GetPrivateProfileIntW(L"CardReader", L"MaxHandleNum", 32, path);
+
+		_reader_len_W = GetPrivateProfileStringW(L"CardReader", L"ReaderName", L"ITE ICC Reader", _reader_W, 128, path);
 		_reader_len_A = WideCharToMultiByte(CP_ACP, 0, _reader_W, -1, _reader_A, 128, NULL, NULL);
 		if (_reader_len_A == 0) {
 			return FALSE;
 		}
 		_reader_len_A--;
 
-		friendlyNameLen = GetPrivateProfileStringW(L"Setting", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
+		wchar_t friendlyName[128];
+		uint32_t friendlyNameLen;
 
-		GetPrivateProfileStringW(L"Setting", L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
+		friendlyNameLen = GetPrivateProfileStringW(L"CardReader", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
+
+		wchar_t uniqueID[DEVDB_MAX_ID_SIZE];
+
+		GetPrivateProfileStringW(L"CardReader", L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
 
 		if (GetPrivateProfileIntW(L"Debug", L"Enable", 0, path) != 0)
 		{
@@ -570,28 +577,20 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			}
 		}
 
-		if (devdb_open(&_devdb_ite, friendlyName, uniqueID, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
-			dbg_close();
-			memDeinit();
-			return FALSE;
-		}
-
-		if (handle_list_init(&_hlist_ctx, _CONTEXT_BASE, 32, _context_release_callback) == false) {
+		if (devdb_open(&_devdb_ite, friendlyName, uniqueID, sizeof(struct itecard_shared_readerinfo)) == DEVDB_S_OK) {
+			if (handle_list_init(&_hlist_ctx, _CONTEXT_BASE, max_ctx, _context_release_callback) != false) {
+				if (handle_list_init(&_hlist_card, _HANDLE_BASE, max_card, _handle_release_callback) != false) {
+					break;
+				}
+				handle_list_deinit(_hlist_ctx);
+			}
 			devdb_close(&_devdb_ite);
-			dbg_close();
-			memDeinit();
-			return FALSE;
 		}
 
-		if (handle_list_init(&_hlist_card, _HANDLE_BASE, 32, _handle_release_callback) == false) {
-			handle_list_deinit(_hlist_ctx);
-			devdb_close(&_devdb_ite);
-			dbg_close();
-			memDeinit();
-			return FALSE;
-		}
+		dbg_close();
+		memDeinit();
 
-		break;
+		return FALSE;
 	}
 
 	case DLL_PROCESS_DETACH:
