@@ -296,6 +296,8 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 		goto end2;
 	}
 
+	handle->id = id;
+
 	return SCARD_S_SUCCESS;
 
 end2:
