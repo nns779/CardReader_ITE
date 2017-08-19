@@ -69,6 +69,21 @@ itecard_status_t itecard_close(struct itecard_handle *const handle, const bool r
 	if (handle->init == false)
 		return ITECARD_S_OK;
 
+	if (noref == true)
+	{
+		ite_dev *ite = &handle->ite;
+
+		if (ite_v_supported_private_ioctl(ite) == true) {
+			dbg("itecard_close: private ioctl is supported");
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 3);
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
+		}
+		else {
+			dbg("itecard_close: private ioctl is not supported");
+		}
+	}
+
 	ite_close(&handle->ite);
 
 	if (handle->reader != NULL)
@@ -78,22 +93,9 @@ itecard_status_t itecard_close(struct itecard_handle *const handle, const bool r
 		}
 
 		if (reset == true || handle->reader->reset == 1) {
-			if (noref == true)
-			{
+			if (noref == true) {
 				card_clear(&handle->reader->card);
 				handle->reader->reset = 0;
-
-				ite_dev *ite = &handle->ite;
-
-				if (ite_v_supported_private_ioctl(ite) == true) {
-					dbg("itecard_close: private ioctl is supported");
-					ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
-					ite_private_ioctl(ite, ITE_IOCTL_OUT, 3);
-					ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
-				}
-				else {
-					dbg("itecard_close: private ioctl is not supported");
-				}
 			}
 			else {
 				handle->reader->reset = 1;
