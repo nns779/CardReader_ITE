@@ -13,7 +13,7 @@ typedef struct _ite_dev {
 #pragma pack(2)
 
 /*
-	KSPROPSETID_IteDevice ({c6efe5eb-855a-4f1b-b7aa-87b5e1dc4113})
+	KSPROPSETID_IteStandard ({c6efe5eb-855a-4f1b-b7aa-87b5e1dc4113})
 
 	PropId: 5 (MercuryDeviceInfo) (get)
 */
