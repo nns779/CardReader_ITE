@@ -42,6 +42,7 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 		ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
 		ite_private_ioctl(ite, ITE_IOCTL_OUT, 2);
 		ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
+		dbg("itecard_open: power on");
 	}
 	else {
 		dbg("itecard_open: private ioctl is not supported");
@@ -68,6 +69,21 @@ itecard_status_t itecard_close(struct itecard_handle *const handle, const bool r
 {
 	if (handle->init == false)
 		return ITECARD_S_OK;
+
+	if (noref == true)
+	{
+		ite_dev *ite = &handle->ite;
+
+		if (ite_v_supported_private_ioctl(ite) == true) {
+			dbg("itecard_close: private ioctl is supported");
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 3);
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
+		}
+		else {
+			dbg("itecard_close: private ioctl is not supported");
+		}
+	}
 
 	ite_close(&handle->ite);
 

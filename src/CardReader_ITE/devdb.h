@@ -18,7 +18,7 @@ struct devdb_shared_devinfo
 	wchar_t path[DEVDB_MAX_PATH_SIZE];
 	wchar_t id[DEVDB_MAX_ID_SIZE];
 	uint32_t ref;
-	uint32_t clear;
+	uint32_t available;
 	uint8_t user[4];
 };
 
@@ -78,7 +78,7 @@ extern devdb_status_t devdb_get_userdata_nolock(devdb *const db, const uint32_t 
 extern devdb_status_t devdb_get_userdata(devdb *const db, const uint32_t id, void **pp);
 extern devdb_status_t devdb_ref_nolock(devdb *const db, const uint32_t id, uint32_t *const ref);
 extern devdb_status_t devdb_ref(devdb *const db, const uint32_t id, uint32_t *const ref);
-extern devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, const bool clear, uint32_t *const ref);
-extern devdb_status_t devdb_unref(devdb *const db, const uint32_t id, const bool clear, uint32_t *const ref);
+extern devdb_status_t devdb_unref_nolock(devdb *const db, const uint32_t id, uint32_t *const ref);
+extern devdb_status_t devdb_unref(devdb *const db, const uint32_t id, uint32_t *const ref);
 
 #define devdb_v_name(devdb) ((devdb)->name)
