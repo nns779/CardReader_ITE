@@ -42,6 +42,7 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 		ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
 		ite_private_ioctl(ite, ITE_IOCTL_OUT, 2);
 		ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
+		dbg("itecard_open: power on");
 	}
 	else {
 		dbg("itecard_open: private ioctl is not supported");
