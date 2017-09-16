@@ -11,22 +11,6 @@
 #include "devdb.h"
 #include "itecard.h"
 
-/* variables */
-
-const SCARD_IO_REQUEST __g_rgSCardT1Pci = { SCARD_PROTOCOL_T1, sizeof(SCARD_IO_REQUEST) };
-
-static HANDLE _hEvent = NULL;
-
-static devdb _devdb_ite;
-
-static handle_list _hlist_ctx;
-static handle_list _hlist_card;
-
-static wchar_t _reader_W[128] = { 0 };
-static uint32_t _reader_len_W = 0;
-static char _reader_A[128] = { 0 };
-static uint32_t _reader_len_A = 0;
-
 /* macros */
 
 #define _CONTEXT_BASE	0x8c110000
@@ -41,10 +25,8 @@ static uint32_t _reader_len_A = 0;
 #define _handle_check_signature(handle) ((handle)->signature == _HANDLE_SIGNATURE)
 #define _handle_check(handle) ((handle) != NULL && _handle_check_signature((handle)))
 
-#define _READER_LIST_SIZE_A (((_reader_len_A) + 1 + 10 + 1) * 8 + 1)
-#define _READER_LIST_SIZE_W (((_reader_len_W) + 1 + 10 + 1) * 8 + 1)
-#define _READER_NAME_SIZE_A ((_reader_len_A) + 1 + 10 + 1 + 1)
-#define _READER_NAME_SIZE_W ((_reader_len_W) + 1 + 10 + 1 + 1)
+#define _READER_NAME_SIZE_A(dev) ((dev)->reader_len_A + 1 + 10 + 1 + 1)
+#define _READER_NAME_SIZE_W(dev) ((dev)->reader_len_W + 1 + 10 + 1 + 1)
 
 /* structures */
 
@@ -57,11 +39,21 @@ struct _handle {
 	uint32_t signature;
 	CRITICAL_SECTION sct;
 	uint32_t id;
+	struct _reader_device *dev;
 	struct itecard_handle itecard;
+};
+
+struct _reader_device {
+	devdb db;
+	wchar_t reader_W[128];
+	uint32_t reader_len_W;
+	char reader_A[128];
+	uint32_t reader_len_A;
 };
 
 struct _reader_list_A
 {
+	struct _reader_device *dev;
 	uint32_t size;
 	uint32_t len;
 	char *list;
@@ -69,10 +61,26 @@ struct _reader_list_A
 
 struct _reader_list_W
 {
+	struct _reader_device *dev;
 	uint32_t size;
 	uint32_t len;
 	wchar_t *list;
 };
+
+/* variables */
+
+const SCARD_IO_REQUEST __g_rgSCardT1Pci = { SCARD_PROTOCOL_T1, sizeof(SCARD_IO_REQUEST) };
+
+static HANDLE _hEvent = NULL;
+
+static handle_list _hlist_ctx;
+static handle_list _hlist_card;
+
+static uint32_t _reader_all_len_W = 0;
+static uint32_t _reader_all_len_A = 0;
+
+static struct _reader_device *_device = NULL;
+static uintptr_t _device_num = 0;
 
 /* functions */
 
@@ -167,15 +175,16 @@ static LONG devdb_status_to_scard_status(devdb_status_t status)
 static int _enum_readers_callback_A(devdb *const db, const uint32_t id, const struct devdb_shared_devinfo *const devinfo, void *prm)
 {
 	struct _reader_list_A *rl = prm;
+	struct _reader_device *rd = rl->dev;
 
 	char name[256];
 	uint32_t id_len, name_len;
 
-	memcpy(name, _reader_A, _reader_len_A * sizeof(char));
-	name[_reader_len_A] = ' ';
-	id_len = strFromUInt32(name + _reader_len_A + 1, 11, id, 10);
+	memcpy(name, rd->reader_A, rd->reader_len_A * sizeof(char));
+	name[rd->reader_len_A] = ' ';
+	id_len = strFromUInt32(name + rd->reader_len_A + 1, 11, id, 10);
 
-	name_len = _reader_len_A + 1 + id_len + 1;
+	name_len = rd->reader_len_A + 1 + id_len + 1;
 
 	if (rl->list != NULL)
 	{
@@ -194,15 +203,16 @@ static int _enum_readers_callback_A(devdb *const db, const uint32_t id, const st
 static int _enum_readers_callback_W(devdb *const db, const uint32_t id, const struct devdb_shared_devinfo *const devinfo, void *prm)
 {
 	struct _reader_list_W *rl = prm;
+	struct _reader_device *rd = rl->dev;
 
 	wchar_t name[256];
 	uint32_t id_len, name_len;
 
-	memcpy(name, _reader_W, _reader_len_W * sizeof(wchar_t));
-	name[_reader_len_W] = L' ';
-	id_len = wstrFromUInt32(name + _reader_len_W + 1, 11, id, 10);
+	memcpy(name, rd->reader_W, rd->reader_len_W * sizeof(wchar_t));
+	name[rd->reader_len_W] = L' ';
+	id_len = wstrFromUInt32(name + rd->reader_len_W + 1, 11, id, 10);
 
-	name_len = _reader_len_W + 1 + id_len + 1;
+	name_len = rd->reader_len_W + 1 + id_len + 1;
 
 	if (rl->list != NULL)
 	{
@@ -218,17 +228,39 @@ static int _enum_readers_callback_W(devdb *const db, const uint32_t id, const st
 	return 1;
 }
 
-static bool _get_reader_id_A(const char *const name, uint32_t *const id)
+static bool _get_reader_id_A(const char *const name, struct _reader_device **const rd, uint32_t *const id)
 {
-	return (strCompareN(_reader_A, name, _reader_len_A) == false || name[_reader_len_A] != ' ' || strToUInt32(&name[_reader_len_A + 1], id) == false) ? false : true;
+	struct _reader_device *d = _device;
+	uintptr_t n = _device_num;
+
+	while (n--) {
+		if (strCompareN(d->reader_A, name, d->reader_len_A) != false && name[d->reader_len_A] == ' ' && strToUInt32(&name[d->reader_len_A + 1], id) != false) {
+			*rd = d;
+			return true;
+		}
+		d++;
+	}
+
+	return false;
 }
 
-static bool _get_reader_id_W(const wchar_t *const name, uint32_t *const id)
+static bool _get_reader_id_W(const wchar_t *const name, struct _reader_device **const rd, uint32_t *const id)
 {
-	return (wstrCompareN(_reader_W, name, _reader_len_W) == false || name[_reader_len_W] != ' ' || wstrToUInt32(&name[_reader_len_W + 1], id) == false) ? false : true;
+	struct _reader_device *d = _device;
+	uintptr_t n = _device_num;
+
+	while (n--) {
+		if (wstrCompareN(d->reader_W, name, d->reader_len_W) != false && name[d->reader_len_W] == L' ' && wstrToUInt32(&name[d->reader_len_W + 1], id) != false) {
+			*rd = d;
+			return true;
+		}
+		d++;
+	}
+
+	return false;
 }
 
-static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD dwShareMode, DWORD dwPreferredProtocols, LPDWORD pdwActiveProtocol)
+static LONG _connect_card(struct _handle *const handle, struct _reader_device *const rd, const uint32_t id, DWORD dwShareMode, DWORD dwPreferredProtocols, LPDWORD pdwActiveProtocol)
 {
 	bool exclusive;
 
@@ -250,7 +282,7 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 	struct devdb_shared_devinfo *devinfo;
 	struct itecard_shared_readerinfo *reader;
 
-	dbr = devdb_get_shared_devinfo_nolock(&_devdb_ite, id, &devinfo);
+	dbr = devdb_get_shared_devinfo_nolock(&rd->db, id, &devinfo);
 	if (dbr != DEVDB_S_OK) {
 		internal_err("_connect_card: devdb_get_shared_devinfo_nolock failed");
 		r = devdb_status_to_scard_status(dbr);
@@ -290,13 +322,14 @@ static LONG _connect_card(struct _handle *const handle, const uint32_t id, DWORD
 		goto end2;
 	}
 
-	if (devdb_ref_nolock(&_devdb_ite, id, NULL) != DEVDB_S_OK) {
+	if (devdb_ref_nolock(&rd->db, id, NULL) != DEVDB_S_OK) {
 		internal_err("_connect_card: devdb_ref_nolock failed");
 		r = SCARD_F_INTERNAL_ERROR;
 		goto end2;
 	}
 
 	handle->id = id;
+	handle->dev = rd;
 
 	return SCARD_S_SUCCESS;
 
@@ -311,7 +344,7 @@ static LONG _disconnect_card(struct _handle *const handle, const bool reset)
 	uint32_t ref;
 	LONG r;
 
-	if (devdb_unref_nolock(&_devdb_ite, handle->id, &ref) == DEVDB_S_OK) {
+	if (devdb_unref_nolock(&handle->dev->db, handle->id, &ref) == DEVDB_S_OK) {
 		r = itecard_status_to_scard_status(itecard_close(&handle->itecard, reset, (ref == 0) ? true : false));
 	}
 	else {
@@ -367,12 +400,12 @@ end:
 	return r;
 }
 
-static DWORD _get_reader_state(const uint32_t id, LPDWORD pcbAtr, LPBYTE rgbAtr)
+static DWORD _get_reader_state(struct _reader_device *const rd, const uint32_t id, LPDWORD pcbAtr, LPBYTE rgbAtr)
 {
 	DWORD state = 0;
 	struct devdb_shared_devinfo *devinfo;
 
-	if (devdb_get_shared_devinfo_nolock(&_devdb_ite, id, &devinfo) != DEVDB_S_OK) {
+	if (devdb_get_shared_devinfo_nolock(&rd->db, id, &devinfo) != DEVDB_S_OK) {
 		state = SCARD_STATE_UNAVAILABLE;
 	}
 	else
@@ -519,13 +552,53 @@ static uintptr_t _handle_release_callback(void *h, void *prm)
 	LONG r;
 	struct _handle *handle = (struct _handle *)h;
 
-	devdb_lock(&_devdb_ite);
+	devdb_lock(&handle->dev->db);
 	r = _disconnect_card(handle, *((bool *)prm));
-	devdb_unlock(&_devdb_ite);
+	devdb_unlock(&handle->dev->db);
 
 	_handle_free(h);
 
 	return (uintptr_t)r;
+}
+
+static bool _reader_device_load(const uint8_t dev_id, struct _reader_device *const rd, const wchar_t *const path)
+{
+	wchar_t name[32], def[32];
+
+	memcpy(name, L"ReaderDevice", 12 * sizeof(wchar_t));
+	wstrFromUInt32(name + 12, 11, dev_id, 10);
+
+	memcpy(def, L"ITE ICC Reader ", 15 * sizeof(wchar_t));
+	wstrFromUInt32(def + 15, 11, dev_id, 10);
+
+	wchar_t friendlyName[128];
+
+	if (GetPrivateProfileStringW(name, L"FriendlyName", NULL, friendlyName, 128, path) == 0) {
+		dbg("_reader_device_load: GetPrivateProfileStringW(FriendlyName): empty");
+		return false;
+	}
+
+	rd->reader_len_W = GetPrivateProfileStringW(name, L"ReaderName", def, rd->reader_W, 128, path);
+	rd->reader_len_A = WideCharToMultiByte(CP_ACP, 0, rd->reader_W, -1, rd->reader_A, 128, NULL, NULL);
+	if (rd->reader_len_A == 0) {
+		dbg("_reader_device_load: rd->reader_len_A == 0");
+		return false;
+	}
+	rd->reader_len_A--;
+
+	wchar_t uniqueID[DEVDB_MAX_ID_SIZE];
+
+	GetPrivateProfileStringW(name, L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
+
+	if (devdb_open(&rd->db, friendlyName, uniqueID, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
+		dbg("_reader_device_load: devdb_open() failed");
+		return false;
+	}
+
+	_reader_all_len_W += (rd->reader_len_W + 1 + 10 + 1) * DEVDB_MAX_DEV_NUM;
+	_reader_all_len_A += (rd->reader_len_A + 1 + 10 + 1) * DEVDB_MAX_DEV_NUM;
+
+	return true;
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
@@ -541,54 +614,107 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		wchar_t path[MAX_PATH + 1];
 		DWORD ret;
 
-		ret = GetModuleFileNameW(hinstDLL, path, MAX_PATH + 1);
+		ret = GetModuleFileNameW(hinstDLL, path, MAX_PATH);
 		if (ret == 0 || wstrCompare(path + ret - 4, L".dll") == false) {
 			return FALSE;
 		}
 
 		memcpy(path + ret - 3, L"ini", 3 * sizeof(wchar_t));
 
-		uintptr_t max_ctx, max_card;
-
-		max_ctx = GetPrivateProfileIntW(L"ResourceManager", L"MaxContextNum", 32, path);
-		max_card = GetPrivateProfileIntW(L"CardReader", L"MaxHandleNum", 32, path);
-
-		_reader_len_W = GetPrivateProfileStringW(L"CardReader", L"ReaderName", L"ITE ICC Reader", _reader_W, 128, path);
-		_reader_len_A = WideCharToMultiByte(CP_ACP, 0, _reader_W, -1, _reader_A, 128, NULL, NULL);
-		if (_reader_len_A == 0) {
-			return FALSE;
-		}
-		_reader_len_A--;
-
-		wchar_t friendlyName[128];
-		uint32_t friendlyNameLen;
-
-		friendlyNameLen = GetPrivateProfileStringW(L"CardReader", L"FriendlyName", L"DigiBest ISDB-T IT9175 BDA Filter", friendlyName, 128, path);
-
-		wchar_t uniqueID[DEVDB_MAX_ID_SIZE];
-
-		GetPrivateProfileStringW(L"CardReader", L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
-
 		if (GetPrivateProfileIntW(L"Debug", L"Enable", 0, path) != 0)
 		{
 			dbg_enable(true);
 
-			if (GetPrivateProfileIntW(L"Debug", L"OutputToFile", 0, path) != 0) {
+			if (GetPrivateProfileIntW(L"Debug", L"OutputToFile", 0, path) != 0)
+			{
+				wchar_t path2[MAX_PATH + 1];
+
+				memcpy(path2, path, ret);
 				memcpy(path + ret - 3, L"log", 3 * sizeof(wchar_t));
+				path2[ret] = L'\0';
 				dbg_open(path);
 			}
 		}
 
-		if (devdb_open(&_devdb_ite, friendlyName, uniqueID, sizeof(struct itecard_shared_readerinfo)) == DEVDB_S_OK) {
-			if (handle_list_init(&_hlist_ctx, _CONTEXT_BASE, max_ctx, _context_release_callback) != false) {
-				if (handle_list_init(&_hlist_card, _HANDLE_BASE, max_card, _handle_release_callback) != false) {
-					break;
+		uintptr_t max_ctx, max_card;
+		wchar_t use_dev[1024];
+		uint32_t use_dev_len;
+		uint8_t dev_ids[256];
+
+		max_ctx = GetPrivateProfileIntW(L"ResourceManager", L"MaxContextNum", 32, path);
+		max_card = GetPrivateProfileIntW(L"CardReader", L"MaxHandleNum", 32, path);
+		use_dev_len = GetPrivateProfileStringW(L"CardReader", L"UseDevice", NULL, use_dev, 1024, path);
+
+		{
+			// UseDevice から番号を取り出す
+
+			uint32_t i, j;
+
+			for (i = 0, j = 0; i < use_dev_len && j < 256; i++)
+			{
+				uint8_t num = 0;
+
+				while (use_dev[i] >= L'0' && use_dev[i] <= L'9') {
+					num *= 10;
+					num += use_dev[i] - L'0';
+					i++;
 				}
-				handle_list_deinit(_hlist_ctx);
+
+				if (num != 0) {
+					dev_ids[j++] = num;
+				}
 			}
-			devdb_close(&_devdb_ite);
+
+			_device_num = j;
 		}
 
+		if (_device_num == 0) {
+			// UseDevice に番号が記述されていない
+			goto attach_err1;
+		}
+
+		_device = memAlloc(_device_num * sizeof(struct _reader_device));
+		if (_device == NULL) {
+			goto attach_err1;
+		}
+
+		_reader_all_len_W = 0;
+		_reader_all_len_A = 0;
+
+		{
+			// 設定ファイルから該当する番号のデバイス情報を読み込む
+
+			uintptr_t i, j;
+
+			for (i = 0, j = 0; i < _device_num; i++) {
+				if (_reader_device_load(dev_ids[i], &_device[j], path) != false) {
+					j++;
+				}
+			}
+
+			if (j == 0) {
+				// 読み込めたデバイス情報が無かった
+				goto attach_err2;
+			}
+
+			_device_num = j;
+		}
+
+		_reader_all_len_W++;
+		_reader_all_len_A++;
+
+		if (handle_list_init(&_hlist_ctx, _CONTEXT_BASE, max_ctx, _context_release_callback) != false) {
+			if (handle_list_init(&_hlist_card, _HANDLE_BASE, max_card, _handle_release_callback) != false) {
+				// 初期化完了
+				break;
+			}
+			handle_list_deinit(_hlist_ctx);
+		}
+
+	attach_err2:
+		memFree(_device);
+
+	attach_err1:
 		dbg_close();
 		memDeinit();
 
@@ -599,7 +725,13 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	{
 		handle_list_deinit(_hlist_card);
 		handle_list_deinit(_hlist_ctx);
-		devdb_close(&_devdb_ite);
+		{
+			uintptr_t i;
+
+			for (i = 0; i < _device_num; i++) {
+				devdb_close(&_device[i].db);
+			}
+		}
 		dbg_close();
 		memDeinit();
 		break;
@@ -726,7 +858,7 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 		handle_list_unlock(_hlist_ctx);
 	}
 
-	LONG r = SCARD_F_INTERNAL_ERROR;
+	LONG r = SCARD_S_SUCCESS;
 
 	bool auto_alloc = false;
 	struct _reader_list_A rl;
@@ -741,14 +873,14 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 		{
 			auto_alloc = true;
 
-			rl.list = memAlloc(_READER_LIST_SIZE_A * sizeof(char));
+			rl.list = memAlloc(_reader_all_len_A * sizeof(char));
 			if (rl.list == NULL) {
 				internal_err("SCardListReadersA(ITE): memAlloc failed");
 				r = SCARD_E_NO_MEMORY;
 				goto end;
 			}
 
-			rl.size = _READER_LIST_SIZE_A - 1;
+			rl.size = _reader_all_len_A - 1;
 
 			*((LPSTR *)mszReaders) = rl.list;
 		}
@@ -758,39 +890,49 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 		}
 	}
 
-	devdb_status_t ret;
+	devdb_status_t ret = DEVDB_E_INTERNAL;
+	uintptr_t i;
 
-	devdb_lock(&_devdb_ite);
-
-	ret = devdb_update_nolock(&_devdb_ite);
-	if (ret == DEVDB_S_OK)
+	for (i = 0; i < _device_num; i++)
 	{
-		ret = devdb_enum_nolock(&_devdb_ite, _enum_readers_callback_A, &rl);
-		if (ret != DEVDB_S_OK) {
+		struct _reader_device *dev = &_device[i];
+
+		devdb_lock(&dev->db);
+
+		ret = devdb_update_nolock(&dev->db);
+		if (ret != DEVDB_S_OK && ret != DEVDB_E_NO_DEVICES) {
+			r = devdb_status_to_scard_status(ret);
+			devdb_unlock(&dev->db);
+			break;
+		}
+
+		rl.dev = dev;
+
+		ret = devdb_enum_nolock(&dev->db, _enum_readers_callback_A, &rl);
+		if (ret != DEVDB_S_OK && ret != DEVDB_E_NO_DEVICES) {
 			r = SCARD_F_INTERNAL_ERROR;
+			devdb_unlock(&dev->db);
+			break;
 		}
 		else if (rl.len == 0) {
 			r = SCARD_E_INSUFFICIENT_BUFFER;
+			devdb_unlock(&dev->db);
+			break;
 		}
-		else
-		{
-			if (rl.list != NULL) {
-				rl.list[rl.len] = '\0';
-			}
 
-			*pcchReaders = rl.len + 1;
-
-			r = SCARD_S_SUCCESS;
-		}
+		devdb_unlock(&dev->db);
 	}
-	else {
-		r = devdb_status_to_scard_status(ret);
-	}
-
-	devdb_unlock(&_devdb_ite);
 
 end:
-	if (r != SCARD_S_SUCCESS)
+	if (r == SCARD_S_SUCCESS)
+	{
+		if (rl.list != NULL) {
+			rl.list[rl.len] = '\0';
+		}
+
+		*pcchReaders = rl.len + 1;
+	}
+	else
 	{
 		if (auto_alloc == true)
 		{
@@ -833,7 +975,7 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 		handle_list_unlock(_hlist_ctx);
 	}
 
-	LONG r = SCARD_F_INTERNAL_ERROR;
+	LONG r = SCARD_S_SUCCESS;
 
 	bool auto_alloc = false;
 	struct _reader_list_W rl;
@@ -848,14 +990,14 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 		{
 			auto_alloc = true;
 
-			rl.list = memAlloc(_READER_LIST_SIZE_W * sizeof(wchar_t));
+			rl.list = memAlloc(_reader_all_len_W * sizeof(wchar_t));
 			if (rl.list == NULL) {
 				internal_err("SCardListReadersW(ITE): memAlloc failed");
 				r = SCARD_E_NO_MEMORY;
 				goto end;
 			}
 
-			rl.size = _READER_LIST_SIZE_W - 1;
+			rl.size = _reader_all_len_W - 1;
 
 			*((LPWSTR *)mszReaders) = rl.list;
 		}
@@ -865,39 +1007,49 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 		}
 	}
 
-	devdb_status_t ret;
+	devdb_status_t ret = DEVDB_E_INTERNAL;
+	uintptr_t i;
 
-	devdb_lock(&_devdb_ite);
-
-	ret = devdb_update_nolock(&_devdb_ite);
-	if (ret == DEVDB_S_OK)
+	for (i = 0; i < _device_num; i++)
 	{
-		ret = devdb_enum_nolock(&_devdb_ite, _enum_readers_callback_W, &rl);
-		if (ret != DEVDB_S_OK) {
+		struct _reader_device *dev = &_device[i];
+
+		devdb_lock(&dev->db);
+
+		ret = devdb_update_nolock(&dev->db);
+		if (ret != DEVDB_S_OK && ret != DEVDB_E_NO_DEVICES) {
+			r = devdb_status_to_scard_status(ret);
+			devdb_unlock(&dev->db);
+			break;
+		}
+
+		rl.dev = dev;
+
+		ret = devdb_enum_nolock(&dev->db, _enum_readers_callback_W, &rl);
+		if (ret != DEVDB_S_OK && ret != DEVDB_E_NO_DEVICES) {
 			r = SCARD_F_INTERNAL_ERROR;
+			devdb_unlock(&dev->db);
+			break;
 		}
 		else if (rl.len == 0) {
 			r = SCARD_E_INSUFFICIENT_BUFFER;
+			devdb_unlock(&dev->db);
+			break;
 		}
-		else
-		{
-			if (rl.list != NULL) {
-				rl.list[rl.len] = L'\0';
-			}
 
-			*pcchReaders = rl.len + 1;
-
-			r = SCARD_S_SUCCESS;
-		}
+		devdb_unlock(&dev->db);
 	}
-	else {
-		r = devdb_status_to_scard_status(ret);
-	}
-
-	devdb_unlock(&_devdb_ite);
 
 end:
-	if (r != SCARD_S_SUCCESS)
+	if (r == SCARD_S_SUCCESS)
+	{
+		if (rl.list != NULL) {
+			rl.list[rl.len] = L'\0';
+		}
+
+		*pcchReaders = rl.len + 1;
+	}
+	else
 	{
 		if (auto_alloc == true)
 		{
@@ -944,8 +1096,6 @@ LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 
 	LONG r = SCARD_S_SUCCESS;
 
-	devdb_lock(&_devdb_ite);
-
 	for (uint32_t i = 0; i < cReaders; i++)
 	{
 		if (strCompare(rgReaderStates[i].szReader, "\\\\?PnP?\\Notification") == true) {
@@ -956,19 +1106,21 @@ LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		rgReaderStates[i].cbAtr = 0;
 
 		DWORD state = 0;
+		struct _reader_device *dev;
 		uint32_t id;
 
-		if (_get_reader_id_A(rgReaderStates[i].szReader, &id) == false) {
+		if (_get_reader_id_A(rgReaderStates[i].szReader, &dev, &id) == false) {
 			state = SCARD_STATE_IGNORE | SCARD_STATE_UNKNOWN;
 		}
 		else {
-			state = _get_reader_state(id, &rgReaderStates[i].cbAtr, rgReaderStates[i].rgbAtr);
+			devdb_lock(&dev->db);
+			state = _get_reader_state(dev, id, &rgReaderStates[i].cbAtr, rgReaderStates[i].rgbAtr);
+			devdb_unlock(&dev->db);
 		}
 
 		rgReaderStates[i].dwEventState = state | ((state != rgReaderStates[i].dwCurrentState) ? SCARD_STATE_CHANGED : 0);
 	}
 
-	devdb_unlock(&_devdb_ite);
 	LeaveCriticalSection(&ctx->sct);
 
 	return r;
@@ -999,8 +1151,6 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 
 	LONG r = SCARD_S_SUCCESS;
 
-	devdb_lock(&_devdb_ite);
-
 	for (uint32_t i = 0; i < cReaders; i++)
 	{
 		if (wstrCompare(rgReaderStates[i].szReader, L"\\\\?PnP?\\Notification") == true) {
@@ -1011,19 +1161,21 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		rgReaderStates[i].cbAtr = 0;
 
 		DWORD state = 0;
+		struct _reader_device *dev;
 		uint32_t id;
 
-		if (_get_reader_id_W(rgReaderStates[i].szReader, &id) == false) {
+		if (_get_reader_id_W(rgReaderStates[i].szReader, &dev, &id) == false) {
 			state = SCARD_STATE_IGNORE | SCARD_STATE_UNKNOWN;
 		}
 		else {
-			state = _get_reader_state(id, &rgReaderStates[i].cbAtr, rgReaderStates[i].rgbAtr);
+			devdb_lock(&dev->db);
+			state = _get_reader_state(dev, id, &rgReaderStates[i].cbAtr, rgReaderStates[i].rgbAtr);
+			devdb_unlock(&dev->db);
 		}
 
 		rgReaderStates[i].dwEventState = state | ((state != rgReaderStates[i].dwCurrentState) ? SCARD_STATE_CHANGED : 0);
 	}
 
-	devdb_unlock(&_devdb_ite);
 	LeaveCriticalSection(&ctx->sct);
 
 	return r;
@@ -1073,12 +1225,13 @@ LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareM
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
+	struct _reader_device *dev;
 	uint32_t id = 0;
 
 	*phCard = 0;
 	*pdwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
 
-	if (_get_reader_id_A(szReader, &id) == false) {
+	if (_get_reader_id_A(szReader, &dev, &id) == false) {
 		r = SCARD_E_UNKNOWN_READER;
 		goto end1;
 	}
@@ -1090,9 +1243,9 @@ LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareM
 		goto end1;
 	}
 
-	devdb_lock(&_devdb_ite);
+	devdb_lock(&dev->db);
 
-	r = _connect_card(handle, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
+	r = _connect_card(handle, dev, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
 	if (r == SCARD_S_SUCCESS)
 	{
 		if (handle_list_put(_hlist_card, handle, phCard) == true) {
@@ -1106,7 +1259,7 @@ LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareM
 	_handle_free(handle);
 
 end2:
-	devdb_unlock(&_devdb_ite);
+	devdb_unlock(&dev->db);
 end1:
 	LeaveCriticalSection(&ctx->sct);
 	return r;
@@ -1133,12 +1286,13 @@ LONG WINAPI SCardConnectW(SCARDCONTEXT hContext, LPCWSTR szReader, DWORD dwShare
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
+	struct _reader_device *dev;
 	uint32_t id = 0;
 
 	*phCard = 0;
 	*pdwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
 
-	if (_get_reader_id_W(szReader, &id) == false) {
+	if (_get_reader_id_W(szReader, &dev, &id) == false) {
 		r = SCARD_E_UNKNOWN_READER;
 		goto end1;
 	}
@@ -1150,9 +1304,9 @@ LONG WINAPI SCardConnectW(SCARDCONTEXT hContext, LPCWSTR szReader, DWORD dwShare
 		goto end1;
 	}
 
-	devdb_lock(&_devdb_ite);
+	devdb_lock(&dev->db);
 
-	r = _connect_card(handle, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
+	r = _connect_card(handle, dev, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
 	if (r == SCARD_S_SUCCESS)
 	{
 		if (handle_list_put(_hlist_card, handle, phCard) == true) {
@@ -1166,7 +1320,7 @@ LONG WINAPI SCardConnectW(SCARDCONTEXT hContext, LPCWSTR szReader, DWORD dwShare
 	_handle_free(handle);
 
 end2:
-	devdb_unlock(&_devdb_ite);
+	devdb_unlock(&dev->db);
 end1:
 	LeaveCriticalSection(&ctx->sct);
 	return r;
@@ -1207,6 +1361,7 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 	dbg("SCardStatusA(ITE)");
 
 	struct _handle *handle;
+	struct _reader_device *dev;
 
 	handle_list_lock(_hlist_card);
 
@@ -1218,6 +1373,8 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 
 	EnterCriticalSection(&handle->sct);
 	handle_list_unlock(_hlist_card);
+
+	dev = handle->dev;
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
 	bool auto_alloc = false;
@@ -1234,7 +1391,7 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 		{
 			auto_alloc = true;
 
-			name = memAlloc(_READER_NAME_SIZE_A * sizeof(char));
+			name = memAlloc(_READER_NAME_SIZE_A(dev) * sizeof(char));
 			if (name == NULL) {
 				r = SCARD_E_NO_MEMORY;
 				goto end2;
@@ -1243,7 +1400,7 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 			*((LPSTR *)szReaderName) = name;
 		}
 		else {
-			if (*pcchReaderLen < _READER_NAME_SIZE_A) {
+			if (*pcchReaderLen < _READER_NAME_SIZE_A(dev)) {
 				r = SCARD_E_INSUFFICIENT_BUFFER;
 				goto end2;
 			}
@@ -1253,30 +1410,30 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 
 		uint32_t id_len;
 
-		memcpy(name, _reader_A, _reader_len_A * sizeof(char));
-		name[_reader_len_A] = ' ';
-		id_len = strFromUInt32(name + _reader_len_A + 1, 11, handle->id, 10);
+		memcpy(name, dev->reader_A, dev->reader_len_A * sizeof(char));
+		name[dev->reader_len_A] = ' ';
+		id_len = strFromUInt32(name + dev->reader_len_A + 1, 11, handle->id, 10);
 
-		*pcchReaderLen = _reader_len_A + 1 + id_len + 1 + 1;
+		*pcchReaderLen = dev->reader_len_A + 1 + id_len + 1 + 1;
 
 		name[*pcchReaderLen - 1] = '\0';
 	}
 
-	devdb_lock(&_devdb_ite);
+	devdb_lock(&dev->db);
 
 	r = _get_card_status(handle, pdwState, pdwProtocol);
 	if (r != SCARD_S_SUCCESS) {
-		devdb_unlock(&_devdb_ite);
+		devdb_unlock(&dev->db);
 		goto end2;
 	}
 
 	r = _get_card_atr(&handle->itecard, pbAtr, pcbAtrLen, 32);
 	if (r != SCARD_S_SUCCESS) {
-		devdb_unlock(&_devdb_ite);
+		devdb_unlock(&dev->db);
 		goto end2;
 	}
 
-	devdb_unlock(&_devdb_ite);
+	devdb_unlock(&dev->db);
 	goto end1;
 
 end2:
@@ -1327,6 +1484,7 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 	dbg("SCardStatusW(ITE)");
 
 	struct _handle *handle;
+	struct _reader_device *dev;
 
 	handle_list_lock(_hlist_card);
 
@@ -1338,6 +1496,8 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 
 	EnterCriticalSection(&handle->sct);
 	handle_list_unlock(_hlist_card);
+
+	dev = handle->dev;
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
 	bool auto_alloc = false;
@@ -1354,7 +1514,7 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 		{
 			auto_alloc = true;
 
-			name = memAlloc(_READER_NAME_SIZE_W * sizeof(wchar_t));
+			name = memAlloc(_READER_NAME_SIZE_W(dev) * sizeof(wchar_t));
 			if (name == NULL) {
 				r = SCARD_E_NO_MEMORY;
 				goto end2;
@@ -1363,7 +1523,7 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 			*((LPWSTR *)szReaderName) = name;
 		}
 		else {
-			if (*pcchReaderLen < _READER_NAME_SIZE_W) {
+			if (*pcchReaderLen < _READER_NAME_SIZE_W(dev)) {
 				r = SCARD_E_INSUFFICIENT_BUFFER;
 				goto end2;
 			}
@@ -1373,30 +1533,30 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 
 		uint32_t id_len;
 
-		memcpy(name, _reader_W, _reader_len_W * sizeof(wchar_t));
-		name[_reader_len_W] = L' ';
-		id_len = wstrFromUInt32(name + _reader_len_W + 1, 11, handle->id, 10);
+		memcpy(name, dev->reader_W, dev->reader_len_W * sizeof(wchar_t));
+		name[dev->reader_len_W] = L' ';
+		id_len = wstrFromUInt32(name + dev->reader_len_W + 1, 11, handle->id, 10);
 
-		*pcchReaderLen = _reader_len_W + 1 + id_len + 1 + 1;
+		*pcchReaderLen = dev->reader_len_W + 1 + id_len + 1 + 1;
 
 		name[*pcchReaderLen - 1] = L'\0';
 	}
 
-	devdb_lock(&_devdb_ite);
+	devdb_lock(&dev->db);
 
 	r = _get_card_status(handle, pdwState, pdwProtocol);
 	if (r != SCARD_S_SUCCESS) {
-		devdb_unlock(&_devdb_ite);
+		devdb_unlock(&dev->db);
 		goto end2;
 	}
 
 	r = _get_card_atr(&handle->itecard, pbAtr, pcbAtrLen, 32);
 	if (r != SCARD_S_SUCCESS) {
-		devdb_unlock(&_devdb_ite);
+		devdb_unlock(&dev->db);
 		goto end2;
 	}
 
-	devdb_unlock(&_devdb_ite);
+	devdb_unlock(&dev->db);
 	goto end1;
 
 end2:
@@ -1450,6 +1610,7 @@ LONG WINAPI SCardTransmit(SCARDHANDLE hCard, LPCSCARD_IO_REQUEST pioSendPci, LPC
 		return SCARD_E_INVALID_PARAMETER;
 
 	struct _handle *handle;
+	struct _reader_device *dev;
 
 	handle_list_lock(_hlist_card);
 
@@ -1462,9 +1623,11 @@ LONG WINAPI SCardTransmit(SCARDHANDLE hCard, LPCSCARD_IO_REQUEST pioSendPci, LPC
 	EnterCriticalSection(&handle->sct);
 	handle_list_unlock(_hlist_card);
 
+	dev = handle->dev;
+
 	LONG r;
 
-	devdb_lock(&_devdb_ite);
+	devdb_lock(&dev->db);
 
 	switch (pioSendPci->dwProtocol)
 	{
@@ -1482,7 +1645,7 @@ LONG WINAPI SCardTransmit(SCARDHANDLE hCard, LPCSCARD_IO_REQUEST pioSendPci, LPC
 		break;
 	}
 
-	devdb_unlock(&_devdb_ite);
+	devdb_unlock(&dev->db);
 
 	LeaveCriticalSection(&handle->sct);
 	return r;
