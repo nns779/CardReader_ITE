@@ -228,14 +228,22 @@ static int _enum_readers_callback_W(devdb *const db, const uint32_t id, const st
 	return 1;
 }
 
-static bool _get_reader_id_A(const char *const name, struct _reader_device **const rd, uint32_t *const id)
+static bool _get_reader_id_A(const char *const name, uintptr_t *const pos, struct _reader_device **const rd, uint32_t *const id)
 {
 	struct _reader_device *d = _device;
 	uintptr_t n = _device_num;
 
+	if (*pos >= n) {
+		return false;
+	}
+
+	d += *pos;
+	n -= *pos;
+
 	while (n--) {
 		if (strCompareN(d->reader_A, name, d->reader_len_A) != false && name[d->reader_len_A] == ' ' && strToUInt32(&name[d->reader_len_A + 1], id) != false) {
 			*rd = d;
+			*pos = d - _device;
 			return true;
 		}
 		d++;
@@ -244,14 +252,22 @@ static bool _get_reader_id_A(const char *const name, struct _reader_device **con
 	return false;
 }
 
-static bool _get_reader_id_W(const wchar_t *const name, struct _reader_device **const rd, uint32_t *const id)
+static bool _get_reader_id_W(const wchar_t *const name, uintptr_t *const pos, struct _reader_device **const rd, uint32_t *const id)
 {
 	struct _reader_device *d = _device;
 	uintptr_t n = _device_num;
 
+	if (*pos >= n) {
+		return false;
+	}
+
+	d += *pos;
+	n -= *pos;
+
 	while (n--) {
 		if (wstrCompareN(d->reader_W, name, d->reader_len_W) != false && name[d->reader_len_W] == L' ' && wstrToUInt32(&name[d->reader_len_W + 1], id) != false) {
 			*rd = d;
+			*pos = d - _device;
 			return true;
 		}
 		d++;
@@ -1122,16 +1138,25 @@ LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		rgReaderStates[i].cbAtr = 0;
 
 		DWORD state = 0;
+		uintptr_t pos = 0;
 		struct _reader_device *dev;
 		uint32_t id;
 
-		if (_get_reader_id_A(rgReaderStates[i].szReader, &dev, &id) == false) {
-			state = SCARD_STATE_IGNORE | SCARD_STATE_UNKNOWN;
-		}
-		else {
+		while (1) {
+			if (_get_reader_id_A(rgReaderStates[i].szReader, &pos, &dev, &id) == false) {
+				state = SCARD_STATE_IGNORE | SCARD_STATE_UNKNOWN;
+				break;
+			}
+
 			devdb_lock(&dev->db);
 			state = _get_reader_state(dev, id, &rgReaderStates[i].cbAtr, rgReaderStates[i].rgbAtr);
 			devdb_unlock(&dev->db);
+
+			if (state != SCARD_STATE_UNAVAILABLE || pos >= _device_num) {
+				break;
+			}
+
+			pos++;
 		}
 
 		rgReaderStates[i].dwEventState = state | ((state != rgReaderStates[i].dwCurrentState) ? SCARD_STATE_CHANGED : 0);
@@ -1177,16 +1202,25 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		rgReaderStates[i].cbAtr = 0;
 
 		DWORD state = 0;
+		uintptr_t pos = 0;
 		struct _reader_device *dev;
 		uint32_t id;
 
-		if (_get_reader_id_W(rgReaderStates[i].szReader, &dev, &id) == false) {
-			state = SCARD_STATE_IGNORE | SCARD_STATE_UNKNOWN;
-		}
-		else {
+		while (1) {
+			if (_get_reader_id_W(rgReaderStates[i].szReader, &pos, &dev, &id) == false) {
+				state = SCARD_STATE_IGNORE | SCARD_STATE_UNKNOWN;
+				break;
+			}
+
 			devdb_lock(&dev->db);
 			state = _get_reader_state(dev, id, &rgReaderStates[i].cbAtr, rgReaderStates[i].rgbAtr);
 			devdb_unlock(&dev->db);
+
+			pos++;
+
+			if (state != SCARD_STATE_UNAVAILABLE || pos >= _device_num) {
+				break;
+			}
 		}
 
 		rgReaderStates[i].dwEventState = state | ((state != rgReaderStates[i].dwCurrentState) ? SCARD_STATE_CHANGED : 0);
@@ -1241,42 +1275,53 @@ LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareM
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
-	struct _reader_device *dev;
-	uint32_t id = 0;
+	uintptr_t pos = 0;
 
-	*phCard = 0;
-	*pdwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
-
-	if (_get_reader_id_A(szReader, &dev, &id) == false) {
-		r = SCARD_E_UNKNOWN_READER;
-		goto end1;
-	}
-
-	struct _handle *handle;
-
-	if (_handle_alloc(&handle) == false) {
-		r = SCARD_E_NO_MEMORY;
-		goto end1;
-	}
-
-	devdb_lock(&dev->db);
-
-	r = _connect_card(handle, dev, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
-	if (r == SCARD_S_SUCCESS)
+	while (1)
 	{
-		if (handle_list_put(_hlist_card, handle, phCard) == true) {
-			goto end2;
+		struct _reader_device *dev;
+		uint32_t id = 0;
+
+		*phCard = 0;
+		*pdwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
+
+		if (_get_reader_id_A(szReader, &pos, &dev, &id) == false) {
+			r = SCARD_E_UNKNOWN_READER;
+			break;
 		}
-		else {
+
+		struct _handle *handle;
+
+		if (_handle_alloc(&handle) == false) {
 			r = SCARD_E_NO_MEMORY;
+			break;
+		}
+
+		devdb_lock(&dev->db);
+
+		r = _connect_card(handle, dev, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
+		if (r == SCARD_S_SUCCESS)
+		{
+			if (handle_list_put(_hlist_card, handle, phCard) == true) {
+				devdb_unlock(&dev->db);
+				break;
+			}
+			else {
+				_disconnect_card(handle, false);
+				r = SCARD_E_NO_MEMORY;
+			}
+		}
+
+		devdb_unlock(&dev->db);
+		_handle_free(handle);
+
+		pos++;
+
+		if (pos >= _device_num) {
+			break;
 		}
 	}
 
-	_handle_free(handle);
-
-end2:
-	devdb_unlock(&dev->db);
-end1:
 	LeaveCriticalSection(&ctx->sct);
 	return r;
 }
@@ -1302,42 +1347,53 @@ LONG WINAPI SCardConnectW(SCARDCONTEXT hContext, LPCWSTR szReader, DWORD dwShare
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
-	struct _reader_device *dev;
-	uint32_t id = 0;
+	uintptr_t pos = 0;
 
-	*phCard = 0;
-	*pdwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
-
-	if (_get_reader_id_W(szReader, &dev, &id) == false) {
-		r = SCARD_E_UNKNOWN_READER;
-		goto end1;
-	}
-
-	struct _handle *handle;
-
-	if (_handle_alloc(&handle) == false) {
-		r = SCARD_E_NO_MEMORY;
-		goto end1;
-	}
-
-	devdb_lock(&dev->db);
-
-	r = _connect_card(handle, dev, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
-	if (r == SCARD_S_SUCCESS)
+	while (1)
 	{
-		if (handle_list_put(_hlist_card, handle, phCard) == true) {
-			goto end2;
+		struct _reader_device *dev;
+		uint32_t id = 0;
+
+		*phCard = 0;
+		*pdwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
+
+		if (_get_reader_id_W(szReader, &pos, &dev, &id) == false) {
+			r = SCARD_E_UNKNOWN_READER;
+			break;
 		}
-		else {
+
+		struct _handle *handle;
+
+		if (_handle_alloc(&handle) == false) {
 			r = SCARD_E_NO_MEMORY;
+			break;
+		}
+
+		devdb_lock(&dev->db);
+
+		r = _connect_card(handle, dev, id, dwShareMode, dwPreferredProtocols, pdwActiveProtocol);
+		if (r == SCARD_S_SUCCESS)
+		{
+			if (handle_list_put(_hlist_card, handle, phCard) == true) {
+				devdb_unlock(&dev->db);
+				break;
+			}
+			else {
+				_disconnect_card(handle, false);
+				r = SCARD_E_NO_MEMORY;
+			}
+		}
+
+		devdb_unlock(&dev->db);
+		_handle_free(handle);
+
+		pos++;
+
+		if (pos >= _device_num) {
+			break;
 		}
 	}
 
-	_handle_free(handle);
-
-end2:
-	devdb_unlock(&dev->db);
-end1:
 	LeaveCriticalSection(&ctx->sct);
 	return r;
 }
