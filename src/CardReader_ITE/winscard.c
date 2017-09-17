@@ -936,7 +936,7 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 				r = SCARD_S_SUCCESS;
 			}
 		}
-		else {
+		else if (r != SCARD_S_SUCCESS) {
 			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 
@@ -1061,7 +1061,7 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 				r = SCARD_S_SUCCESS;
 			}
 		}
-		else {
+		else if (r != SCARD_S_SUCCESS) {
 			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 
