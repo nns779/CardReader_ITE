@@ -686,7 +686,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		if (_device_num == 0) {
 			// UseDevice に番号が記述されていない
-			goto attach_err1;
+			goto attach_skip1;
 		}
 
 		_device = memAlloc(_device_num * sizeof(struct _reader_device));
@@ -708,14 +708,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 				}
 			}
 
-			if (j == 0) {
-				// 読み込めたデバイス情報が無かった
-				goto attach_err2;
-			}
-
 			_device_num = j;
 		}
 
+	attach_skip1:
 		_reader_all_len_W++;
 		_reader_all_len_A++;
 
@@ -727,7 +723,6 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			handle_list_deinit(_hlist_ctx);
 		}
 
-	attach_err2:
 		memFree(_device);
 
 	attach_err1:
@@ -748,6 +743,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 				devdb_close(&_device[i].db);
 			}
 		}
+		memFree(_device);
 		dbg_close();
 		memDeinit();
 		break;
