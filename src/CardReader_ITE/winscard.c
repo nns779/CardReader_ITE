@@ -1,4 +1,4 @@
-// winscard.c
+﻿// winscard.c
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -858,7 +858,7 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 		handle_list_unlock(_hlist_ctx);
 	}
 
-	LONG r = SCARD_S_SUCCESS;
+	LONG r = SCARD_F_INTERNAL_ERROR;
 
 	bool auto_alloc = false;
 	struct _reader_list_A rl;
@@ -909,15 +909,23 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 		rl.dev = dev;
 
 		ret = devdb_enum_nolock(&dev->db, _enum_readers_callback_A, &rl);
-		if (ret != DEVDB_S_OK && ret != DEVDB_E_NO_DEVICES) {
-			r = SCARD_F_INTERNAL_ERROR;
-			devdb_unlock(&dev->db);
-			break;
+		if (ret != DEVDB_E_NO_DEVICES) {
+			if (ret != DEVDB_S_OK) {
+				r = SCARD_F_INTERNAL_ERROR;
+				devdb_unlock(&dev->db);
+				break;
+			}
+			else if (rl.len == 0) {
+				r = SCARD_E_INSUFFICIENT_BUFFER;
+				devdb_unlock(&dev->db);
+				break;
+			}
+			else {
+				r = SCARD_S_SUCCESS;
+			}
 		}
-		else if (rl.len == 0) {
-			r = SCARD_E_INSUFFICIENT_BUFFER;
-			devdb_unlock(&dev->db);
-			break;
+		else {
+			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 
 		devdb_unlock(&dev->db);
@@ -975,7 +983,7 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 		handle_list_unlock(_hlist_ctx);
 	}
 
-	LONG r = SCARD_S_SUCCESS;
+	LONG r = SCARD_F_INTERNAL_ERROR;
 
 	bool auto_alloc = false;
 	struct _reader_list_W rl;
@@ -1026,15 +1034,23 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 		rl.dev = dev;
 
 		ret = devdb_enum_nolock(&dev->db, _enum_readers_callback_W, &rl);
-		if (ret != DEVDB_S_OK && ret != DEVDB_E_NO_DEVICES) {
-			r = SCARD_F_INTERNAL_ERROR;
-			devdb_unlock(&dev->db);
-			break;
+		if (ret != DEVDB_E_NO_DEVICES) {
+			if (ret != DEVDB_S_OK) {
+				r = SCARD_F_INTERNAL_ERROR;
+				devdb_unlock(&dev->db);
+				break;
+			}
+			else if (rl.len == 0) {
+				r = SCARD_E_INSUFFICIENT_BUFFER;
+				devdb_unlock(&dev->db);
+				break;
+			}
+			else {
+				r = SCARD_S_SUCCESS;
+			}
 		}
-		else if (rl.len == 0) {
-			r = SCARD_E_INSUFFICIENT_BUFFER;
-			devdb_unlock(&dev->db);
-			break;
+		else {
+			r = SCARD_E_NO_READERS_AVAILABLE;
 		}
 
 		devdb_unlock(&dev->db);
