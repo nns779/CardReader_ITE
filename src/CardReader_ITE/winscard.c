@@ -577,24 +577,32 @@ static uintptr_t _handle_release_callback(void *h, void *prm)
 	return (uintptr_t)r;
 }
 
-static bool _reader_device_load(const uint8_t dev_id, struct _reader_device *const rd, const wchar_t *const path)
+static bool _reader_device_load(const uint8_t dev_id, const wchar_t *const name, struct _reader_device *const rd, const wchar_t *const path)
 {
-	wchar_t name[32], def[32];
+	wchar_t _name[32], def[32];
+	wchar_t *nm;
 
-	memcpy(name, L"ReaderDevice", 12 * sizeof(wchar_t));
-	wstrFromUInt32(name + 12, 11, dev_id, 10);
+	if (name != NULL) {
+		nm = (wchar_t *)name;
+		memcpy(def, L"ITE ICC Reader", 15 * sizeof(wchar_t));
+	}
+	else {
+		memcpy(_name, L"ReaderDevice", 12 * sizeof(wchar_t));
+		wstrFromUInt32(_name + 12, 11, dev_id, 10);
+		nm = _name;
 
-	memcpy(def, L"ITE ICC Reader ", 15 * sizeof(wchar_t));
-	wstrFromUInt32(def + 15, 11, dev_id, 10);
+		memcpy(def, L"ITE ICC Reader ", 15 * sizeof(wchar_t));
+		wstrFromUInt32(def + 15, 11, dev_id, 10);
+	}
 
 	wchar_t friendlyName[128];
 
-	if (GetPrivateProfileStringW(name, L"FriendlyName", NULL, friendlyName, 128, path) == 0) {
+	if (GetPrivateProfileStringW(nm, L"FriendlyName", NULL, friendlyName, 128, path) == 0) {
 		dbg("_reader_device_load: GetPrivateProfileStringW(FriendlyName): empty");
 		return false;
 	}
 
-	rd->reader_len_W = GetPrivateProfileStringW(name, L"ReaderName", def, rd->reader_W, 128, path);
+	rd->reader_len_W = GetPrivateProfileStringW(nm, L"ReaderName", def, rd->reader_W, 128, path);
 	rd->reader_len_A = WideCharToMultiByte(CP_ACP, 0, rd->reader_W, -1, rd->reader_A, 128, NULL, NULL);
 	if (rd->reader_len_A == 0) {
 		dbg("_reader_device_load: rd->reader_len_A == 0");
@@ -604,7 +612,7 @@ static bool _reader_device_load(const uint8_t dev_id, struct _reader_device *con
 
 	wchar_t uniqueID[DEVDB_MAX_ID_SIZE];
 
-	GetPrivateProfileStringW(name, L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
+	GetPrivateProfileStringW(nm, L"UniqueID", L"", uniqueID, DEVDB_MAX_ID_SIZE, path);
 
 	if (devdb_open(&rd->db, friendlyName, uniqueID, sizeof(struct itecard_shared_readerinfo)) != DEVDB_S_OK) {
 		dbg("_reader_device_load: devdb_open() failed");
@@ -661,6 +669,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		max_card = GetPrivateProfileIntW(L"CardReader", L"MaxHandleNum", 32, path);
 		use_dev_len = GetPrivateProfileStringW(L"CardReader", L"UseDevice", NULL, use_dev, 1024, path);
 
+		_device_num = 0;
+
 		{
 			// UseDevice から番号を取り出す
 
@@ -684,12 +694,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			_device_num = j;
 		}
 
-		if (_device_num == 0) {
-			// UseDevice に番号が記述されていない
-			goto attach_skip1;
-		}
-
-		_device = memAlloc(_device_num * sizeof(struct _reader_device));
+		_device = memAlloc((_device_num + 1) * sizeof(struct _reader_device));
 		if (_device == NULL) {
 			goto attach_err1;
 		}
@@ -697,21 +702,34 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		_reader_all_len_W = 0;
 		_reader_all_len_A = 0;
 
+		if (_device_num != 0)
 		{
 			// 設定ファイルから該当する番号のデバイス情報を読み込む
 
 			uintptr_t i, j;
 
 			for (i = 0, j = 0; i < _device_num; i++) {
-				if (_reader_device_load(dev_ids[i], &_device[j], path) != false) {
+				if (_reader_device_load(dev_ids[i], NULL, &_device[j], path) != false) {
 					j++;
 				}
+			}
+
+			if (_device_num > j) {
+				memset(_device + j, 0, (_device_num - j) * sizeof(struct _reader_device));
 			}
 
 			_device_num = j;
 		}
 
-	attach_skip1:
+		// 古いiniファイルの記述方法としても読み込んでみる
+
+		if (_reader_device_load(0, L"CardReader", &_device[_device_num], path) != false) {
+			_device_num++;
+		}
+		else if (_reader_device_load(0, L"Setting", &_device[_device_num], path) != false) {
+			_device_num++;
+		}
+
 		_reader_all_len_W++;
 		_reader_all_len_A++;
 
@@ -723,7 +741,15 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 			handle_list_deinit(_hlist_ctx);
 		}
 
-		memFree(_device);
+		{
+			uintptr_t i;
+
+			for (i = 0; i < _device_num; i++) {
+				devdb_close(&_device[i].db);
+			}
+
+			memFree(_device);
+		}
 
 	attach_err1:
 		dbg_close();
@@ -736,14 +762,18 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	{
 		handle_list_deinit(_hlist_card);
 		handle_list_deinit(_hlist_ctx);
+
+		if (_device != NULL)
 		{
 			uintptr_t i;
 
 			for (i = 0; i < _device_num; i++) {
 				devdb_close(&_device[i].db);
 			}
+
+			memFree(_device);
 		}
-		memFree(_device);
+
 		dbg_close();
 		memDeinit();
 		break;
