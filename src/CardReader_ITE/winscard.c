@@ -900,7 +900,7 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 		handle_list_unlock(_hlist_ctx);
 	}
 
-	LONG r = SCARD_F_INTERNAL_ERROR;
+	LONG r = SCARD_E_NO_READERS_AVAILABLE;
 
 	bool auto_alloc = false;
 	struct _reader_list_A rl;
@@ -1025,7 +1025,7 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 		handle_list_unlock(_hlist_ctx);
 	}
 
-	LONG r = SCARD_F_INTERNAL_ERROR;
+	LONG r = SCARD_E_NO_READERS_AVAILABLE;
 
 	bool auto_alloc = false;
 	struct _reader_list_W rl;
