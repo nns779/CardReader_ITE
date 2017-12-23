@@ -173,7 +173,7 @@
     <ClCompile Include="winscard.c" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\package\CardReader_ITE.ini" />
+    <None Include="..\..\package\CardReader_ITE\CardReader_ITE.ini" />
     <None Include="winscard.def" />
   </ItemGroup>
   <ItemGroup>
