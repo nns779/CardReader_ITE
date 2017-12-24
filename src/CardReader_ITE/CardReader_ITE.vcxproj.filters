@@ -21,6 +21,9 @@
     <ClCompile Include="card.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+	<ClCompile Include="cfunc.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
     <ClCompile Include="debug.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
