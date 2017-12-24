@@ -72,6 +72,7 @@ struct _reader_list_W
 const SCARD_IO_REQUEST __g_rgSCardT1Pci = { SCARD_PROTOCOL_T1, sizeof(SCARD_IO_REQUEST) };
 
 static HANDLE _hEvent = NULL;
+static uintptr_t _event_ref = 0;
 
 static handle_list _hlist_ctx;
 static handle_list _hlist_card;
@@ -430,6 +431,7 @@ static DWORD _get_reader_state(struct _reader_device *const rd, const uint32_t i
 		struct itecard_handle h;
 
 		reader = (struct itecard_shared_readerinfo *)devinfo->user;
+		memset(&h, 0, sizeof(struct itecard_handle));
 
 		if (itecard_open(&h, devinfo->path, reader, ITECARD_PROTOCOL_UNDEFINED, false) != ITECARD_S_OK) {
 			state = SCARD_STATE_UNAVAILABLE;
@@ -533,9 +535,25 @@ static bool _context_free(struct _context *const ctx)
 	return true;
 }
 
+static void _context_lock(struct _context *const ctx)
+{
+	EnterCriticalSection(&ctx->sct);
+	return;
+}
+
+static void _context_unlock(struct _context *const ctx)
+{
+	LeaveCriticalSection(&ctx->sct);
+	return;
+}
+
 static uintptr_t _context_release_callback(void *h, void *prm)
 {
+	_context_lock(h);
+	_context_unlock(h);
+
 	_context_free(h);
+
 	return 0;
 }
 
@@ -563,14 +581,30 @@ static bool _handle_free(struct _handle *const handle)
 	return true;
 }
 
+static void _handle_lock(struct _handle *const handle)
+{
+	EnterCriticalSection(&handle->sct);
+	return;
+}
+
+static void _handle_unlock(struct _handle *const handle)
+{
+	LeaveCriticalSection(&handle->sct);
+	return;
+}
+
 static uintptr_t _handle_release_callback(void *h, void *prm)
 {
 	LONG r;
 	struct _handle *handle = (struct _handle *)h;
 
+	_handle_lock(handle);
+
 	devdb_lock(&handle->dev->db);
 	r = _disconnect_card(handle, *((bool *)prm));
 	devdb_unlock(&handle->dev->db);
+
+	_handle_unlock(handle);
 
 	_handle_free(h);
 
@@ -659,6 +693,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 				dbg_open(path);
 			}
 		}
+
+		_hEvent = NULL;
+		_event_ref = 0;
 
 		uintptr_t max_ctx, max_card;
 		wchar_t use_dev[1024];
@@ -760,6 +797,11 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 	case DLL_PROCESS_DETACH:
 	{
+		if (_hEvent != NULL) {
+			CloseHandle(_hEvent);
+		}
+		_event_ref = 0;
+
 		handle_list_deinit(_hlist_card);
 		handle_list_deinit(_hlist_ctx);
 
@@ -776,6 +818,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 
 		dbg_close();
 		memDeinit();
+
 		break;
 	}
 
@@ -828,9 +871,6 @@ LONG WINAPI SCardReleaseContext(SCARDCONTEXT hContext)
 		goto end;
 	}
 
-	EnterCriticalSection(&ctx->sct);
-	LeaveCriticalSection(&ctx->sct);
-
 	handle_list_release_nolock(_hlist_ctx, hContext, true, NULL, NULL);
 
 	r = SCARD_S_SUCCESS;
@@ -861,12 +901,12 @@ LONG WINAPI SCardFreeMemory(SCARDCONTEXT hContext, LPCVOID pvMem)
 			return SCARD_E_INVALID_HANDLE;
 		}
 
-		EnterCriticalSection(&ctx->sct);
+		_context_lock(ctx);
 		handle_list_unlock(_hlist_ctx);
 
 		memFree(pvMem);
 
-		LeaveCriticalSection(&ctx->sct);
+		_context_unlock(ctx);
 	}
 	else {
 		memFree(pvMem);
@@ -896,7 +936,7 @@ LONG WINAPI SCardListReadersA(SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR msz
 			return SCARD_E_INVALID_HANDLE;
 		}
 
-		EnterCriticalSection(&ctx->sct);
+		_context_lock(ctx);
 		handle_list_unlock(_hlist_ctx);
 	}
 
@@ -996,7 +1036,7 @@ end:
 	}
 
 	if (ctx != NULL) {
-		LeaveCriticalSection(&ctx->sct);
+		_context_unlock(ctx);
 	}
 
 	return r;
@@ -1021,7 +1061,7 @@ LONG WINAPI SCardListReadersW(SCARDCONTEXT hContext, LPCWSTR mszGroups, LPWSTR m
 			return SCARD_E_INVALID_HANDLE;
 		}
 
-		EnterCriticalSection(&ctx->sct);
+		_context_lock(ctx);
 		handle_list_unlock(_hlist_ctx);
 	}
 
@@ -1121,7 +1161,7 @@ end:
 	}
 
 	if (ctx != NULL) {
-		LeaveCriticalSection(&ctx->sct);
+		_context_unlock(ctx);
 	}
 
 	return r;
@@ -1149,7 +1189,7 @@ LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		return SCARD_E_INVALID_HANDLE;
 	}
 
-	EnterCriticalSection(&ctx->sct);
+	_context_lock(ctx);
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_S_SUCCESS;
@@ -1188,7 +1228,7 @@ LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		rgReaderStates[i].dwEventState = state | ((state != rgReaderStates[i].dwCurrentState) ? SCARD_STATE_CHANGED : 0);
 	}
 
-	LeaveCriticalSection(&ctx->sct);
+	_context_unlock(ctx);
 
 	return r;
 }
@@ -1213,7 +1253,7 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		return SCARD_E_INVALID_HANDLE;
 	}
 
-	EnterCriticalSection(&ctx->sct);
+	_context_lock(ctx);
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_S_SUCCESS;
@@ -1252,7 +1292,7 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 		rgReaderStates[i].dwEventState = state | ((state != rgReaderStates[i].dwCurrentState) ? SCARD_STATE_CHANGED : 0);
 	}
 
-	LeaveCriticalSection(&ctx->sct);
+	_context_unlock(ctx);
 
 	return r;
 }
@@ -1297,7 +1337,7 @@ LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareM
 		return SCARD_E_INVALID_HANDLE;
 	}
 
-	EnterCriticalSection(&ctx->sct);
+	_context_lock(ctx);
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
@@ -1348,7 +1388,8 @@ LONG WINAPI SCardConnectA(SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareM
 		}
 	}
 
-	LeaveCriticalSection(&ctx->sct);
+	_context_unlock(ctx);
+
 	return r;
 }
 
@@ -1369,7 +1410,7 @@ LONG WINAPI SCardConnectW(SCARDCONTEXT hContext, LPCWSTR szReader, DWORD dwShare
 		return SCARD_E_INVALID_HANDLE;
 	}
 
-	EnterCriticalSection(&ctx->sct);
+	_context_lock(ctx);
 	handle_list_unlock(_hlist_ctx);
 
 	LONG r = SCARD_F_INTERNAL_ERROR;
@@ -1420,7 +1461,8 @@ LONG WINAPI SCardConnectW(SCARDCONTEXT hContext, LPCWSTR szReader, DWORD dwShare
 		}
 	}
 
-	LeaveCriticalSection(&ctx->sct);
+	_context_unlock(ctx);
+
 	return r;
 }
 
@@ -1438,9 +1480,6 @@ LONG WINAPI SCardDisconnect(SCARDHANDLE hCard, DWORD dwDisposition)
 		r = SCARD_E_INVALID_HANDLE;
 		goto end;
 	}
-
-	EnterCriticalSection(&handle->sct);
-	LeaveCriticalSection(&handle->sct);
 
 	bool reset = (dwDisposition & SCARD_RESET_CARD) ? true : false;
 	uintptr_t ret = SCARD_F_INTERNAL_ERROR;
@@ -1469,7 +1508,7 @@ LONG WINAPI SCardStatusA(SCARDHANDLE hCard, LPSTR szReaderName, LPDWORD pcchRead
 		return SCARD_E_INVALID_HANDLE;
 	}
 
-	EnterCriticalSection(&handle->sct);
+	_handle_lock(handle);
 	handle_list_unlock(_hlist_card);
 
 	dev = handle->dev;
@@ -1573,7 +1612,7 @@ end2:
 	}
 
 end1:
-	LeaveCriticalSection(&handle->sct);
+	_handle_unlock(handle);
 	return r;
 }
 
@@ -1592,7 +1631,7 @@ LONG WINAPI SCardStatusW(SCARDHANDLE hCard, LPWSTR szReaderName, LPDWORD pcchRea
 		return SCARD_E_INVALID_HANDLE;
 	}
 
-	EnterCriticalSection(&handle->sct);
+	_handle_lock(handle);
 	handle_list_unlock(_hlist_card);
 
 	dev = handle->dev;
@@ -1696,7 +1735,7 @@ end2:
 	}
 
 end1:
-	LeaveCriticalSection(&handle->sct);
+	_handle_unlock(handle);
 	return r;
 }
 
@@ -1718,7 +1757,7 @@ LONG WINAPI SCardTransmit(SCARDHANDLE hCard, LPCSCARD_IO_REQUEST pioSendPci, LPC
 		return SCARD_E_INVALID_HANDLE;
 	}
 
-	EnterCriticalSection(&handle->sct);
+	_handle_lock(handle);
 	handle_list_unlock(_hlist_card);
 
 	dev = handle->dev;
@@ -1745,7 +1784,8 @@ LONG WINAPI SCardTransmit(SCARDHANDLE hCard, LPCSCARD_IO_REQUEST pioSendPci, LPC
 
 	devdb_unlock(&dev->db);
 
-	LeaveCriticalSection(&handle->sct);
+	_handle_unlock(handle);
+
 	return r;
 }
 
@@ -1760,11 +1800,22 @@ HANDLE WINAPI SCardAccessStartedEvent(void)
 		SetEvent(_hEvent);
 	}
 
+	_event_ref++;
+
 	return _hEvent;
 }
 
 void WINAPI SCardReleaseStartedEvent(void)
 {
+	if (_event_ref > 0) {
+		--_event_ref;
+	}
+
+	if (_event_ref == 0 && _hEvent != NULL) {
+		CloseHandle(_hEvent);
+		_hEvent = NULL;
+	}
+
 	return;
 }
 
