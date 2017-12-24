@@ -247,6 +247,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;CARDREADER_ITE_EXPORTS;_RELEASE_LITE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -255,6 +256,7 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <ModuleDefinitionFile>winscard.def</ModuleDefinitionFile>
       <EntryPointSymbol>DllMain</EntryPointSymbol>
+      <AdditionalDependencies>libcmt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y "$(TargetPath)" "$(SolutionDir)package\$(ProjectName)\$(PlatformTarget)-lite\"</Command>
@@ -270,6 +272,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;_USRDLL;CARDREADER_ITE_EXPORTS;_RELEASE_LITE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BufferSecurityCheck>false</BufferSecurityCheck>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -278,6 +281,7 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <ModuleDefinitionFile>winscard.def</ModuleDefinitionFile>
       <EntryPointSymbol>DllMain</EntryPointSymbol>
+      <AdditionalDependencies>libcmt.lib;libvcruntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y "$(TargetPath)" "$(SolutionDir)package\$(ProjectName)\$(PlatformTarget)-lite\"</Command>
@@ -331,16 +335,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="card.c" />
-    <ClCompile Include="cfunc.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release-static|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release-static|x64'">true</ExcludedFromBuild>
-      <WholeProgramOptimization Condition="'$(Configuration)|$(Platform)'=='Release-lite|Win32'">false</WholeProgramOptimization>
-      <WholeProgramOptimization Condition="'$(Configuration)|$(Platform)'=='Release-lite|x64'">false</WholeProgramOptimization>
-    </ClCompile>
     <ClCompile Include="debug.c" />
     <ClCompile Include="devdb.c" />
     <ClCompile Include="handle.c" />

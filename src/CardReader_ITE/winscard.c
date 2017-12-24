@@ -773,6 +773,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 		if (handle_list_init(&_hlist_ctx, _CONTEXT_BASE, max_ctx, _context_release_callback) != false) {
 			if (handle_list_init(&_hlist_card, _HANDLE_BASE, max_card, _handle_release_callback) != false) {
 				// 初期化完了
+#if defined(_RELEASE_LITE) && defined(_MSC_VER)
+				extern int __isa_available_init();
+				__isa_available_init();
+#endif
 				break;
 			}
 			handle_list_deinit(_hlist_ctx);
