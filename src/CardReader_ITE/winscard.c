@@ -49,6 +49,7 @@ struct _reader_device {
 	uint32_t reader_len_W;
 	char reader_A[128];
 	uint32_t reader_len_A;
+	uint8_t power_mode;
 };
 
 struct _reader_list_A
@@ -316,7 +317,7 @@ static LONG _connect_card(struct _handle *const handle, struct _reader_device *c
 
 	itecard_status_t cr;
 
-	cr = itecard_open(&handle->itecard, devinfo->path, reader, protocol, exclusive);
+	cr = itecard_open(&handle->itecard, devinfo->path, reader, protocol, exclusive, ((rd->power_mode & 1) ? true : false));
 	if (cr != ITECARD_S_OK) {
 		internal_err("_connect_card: itecard_open failed");
 		r = itecard_status_to_scard_status(cr);
@@ -351,7 +352,7 @@ static LONG _connect_card(struct _handle *const handle, struct _reader_device *c
 	return SCARD_S_SUCCESS;
 
 end2:
-	itecard_close(&handle->itecard, true, (devinfo->ref == 0) ? true : false);
+	itecard_close(&handle->itecard, true, ((devinfo->ref == 0) ? true : false), ((rd->power_mode & 2) ? true : false));
 end1:
 	return r;
 }
@@ -362,7 +363,7 @@ static LONG _disconnect_card(struct _handle *const handle, const bool reset)
 	LONG r;
 
 	if (devdb_unref_nolock(&handle->dev->db, handle->id, &ref) == DEVDB_S_OK) {
-		r = itecard_status_to_scard_status(itecard_close(&handle->itecard, reset, (ref == 0) ? true : false));
+		r = itecard_status_to_scard_status(itecard_close(&handle->itecard, reset, ((ref == 0) ? true : false), ((handle->dev->power_mode & 2) ? true : false)));
 	}
 	else {
 		r = SCARD_F_INTERNAL_ERROR;
@@ -433,7 +434,7 @@ static DWORD _get_reader_state(struct _reader_device *const rd, const uint32_t i
 		reader = (struct itecard_shared_readerinfo *)devinfo->user;
 		memset(&h, 0, sizeof(struct itecard_handle));
 
-		if (itecard_open(&h, devinfo->path, reader, ITECARD_PROTOCOL_UNDEFINED, false) != ITECARD_S_OK) {
+		if (itecard_open(&h, devinfo->path, reader, ITECARD_PROTOCOL_UNDEFINED, false, ((devinfo->ref == 0) ? true : false)) != ITECARD_S_OK) {
 			state = SCARD_STATE_UNAVAILABLE;
 		}
 		else {
@@ -463,7 +464,7 @@ static DWORD _get_reader_state(struct _reader_device *const rd, const uint32_t i
 				_get_card_atr(&h, rgbAtr, pcbAtr, 36);
 			}
 
-			itecard_close(&h, false, false);
+			itecard_close(&h, false, false, ((devinfo->ref == 0) ? true : false));
 		}
 	}
 
@@ -655,6 +656,15 @@ static bool _reader_device_load(const uint8_t dev_id, const wchar_t *const name,
 
 	_reader_all_len_W += (rd->reader_len_W + 1 + 10 + 1) * DEVDB_MAX_DEV_NUM;
 	_reader_all_len_A += (rd->reader_len_A + 1 + 10 + 1) * DEVDB_MAX_DEV_NUM;
+
+	UINT power_mode;
+
+	power_mode = GetPrivateProfileIntW(nm, L"PowerControlMode", 3, path);
+	if ((power_mode & (UINT_MAX - 3))) {
+		power_mode = 3;
+	}
+
+	rd->power_mode = (uint8_t)power_mode;
 
 	return true;
 }
@@ -1177,11 +1187,17 @@ LONG WINAPI SCardGetStatusChangeA(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 {
 	dbg("SCardGetStatusChangeA(ITE)");
 
-	if (rgReaderStates == NULL || cReaders == 0)
+	if (cReaders != 0 && rgReaderStates == NULL)
 		return SCARD_E_INVALID_PARAMETER;
 
 	if (dwTimeout != 0)
 		return SCARD_E_READER_UNSUPPORTED;
+
+	for (uint32_t i = 0; i < cReaders; i++) {
+		if (rgReaderStates[i].szReader == NULL) {
+			return SCARD_E_INVALID_VALUE;
+		}
+	}
 
 	struct _context *ctx;
 
@@ -1241,11 +1257,17 @@ LONG WINAPI SCardGetStatusChangeW(SCARDCONTEXT hContext, DWORD dwTimeout, LPSCAR
 {
 	dbg("SCardGetStatusChangeW(ITE)");
 
-	if (rgReaderStates == NULL || cReaders == 0)
+	if (cReaders != 0 && rgReaderStates == NULL)
 		return SCARD_E_INVALID_PARAMETER;
 
 	if (dwTimeout != 0)
 		return SCARD_E_READER_UNSUPPORTED;
+
+	for (uint32_t i = 0; i < cReaders; i++) {
+		if (rgReaderStates[i].szReader == NULL) {
+			return SCARD_E_INVALID_VALUE;
+		}
+	}
 
 	struct _context *ctx;
 
