@@ -11,7 +11,7 @@
 
 #define micro2milli(microseconds) (((microseconds) / 1000) + 1)
 
-itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t *const path, struct itecard_shared_readerinfo *const reader, const itecard_protocol_t protocol, const bool exclusive)
+itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t *const path, struct itecard_shared_readerinfo *const reader, const itecard_protocol_t protocol, const bool exclusive, const bool power_on)
 {
 	itecard_status_t r = ITECARD_E_INTERNAL;
 
@@ -37,15 +37,17 @@ itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t
 	}
 
 	// set power
-	if (ite_v_supported_private_ioctl(ite) == true) {
-		dbg("itecard_open: private ioctl is supported");
-		ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
-		ite_private_ioctl(ite, ITE_IOCTL_OUT, 2);
-		ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
-		dbg("itecard_open: power on");
-	}
-	else {
-		dbg("itecard_open: private ioctl is not supported");
+	if (power_on != false) {
+		if (ite_v_supported_private_ioctl(ite) == true) {
+			dbg("itecard_open: private ioctl is supported");
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 2);
+			ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
+			dbg("itecard_open: power on");
+		}
+		else {
+			dbg("itecard_open: private ioctl is not supported");
+		}
 	}
 
 	if (exclusive == true) {
@@ -65,7 +67,7 @@ end1:
 	return r;
 }
 
-itecard_status_t itecard_close(struct itecard_handle *const handle, const bool reset, const bool noref)
+itecard_status_t itecard_close(struct itecard_handle *const handle, const bool reset, const bool noref, const bool power_off)
 {
 	if (handle->init == false)
 		return ITECARD_S_OK;
@@ -74,14 +76,17 @@ itecard_status_t itecard_close(struct itecard_handle *const handle, const bool r
 	{
 		ite_dev *ite = &handle->ite;
 
-		if (ite_v_supported_private_ioctl(ite) == true) {
-			dbg("itecard_close: private ioctl is supported");
-			ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
-			ite_private_ioctl(ite, ITE_IOCTL_OUT, 3);
-			ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
-		}
-		else {
-			dbg("itecard_close: private ioctl is not supported");
+		if (power_off != false) {
+			if (ite_v_supported_private_ioctl(ite) == true) {
+				dbg("itecard_close: private ioctl is supported");
+				ite_private_ioctl(ite, ITE_IOCTL_OUT, 1);
+				ite_private_ioctl(ite, ITE_IOCTL_OUT, 3);
+				ite_private_ioctl(ite, ITE_IOCTL_OUT, 0);
+				dbg("itecard_close: power off");
+			}
+			else {
+				dbg("itecard_close: private ioctl is not supported");
+			}
 		}
 	}
 

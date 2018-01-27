@@ -50,7 +50,7 @@
     <None Include="winscard.def">
       <Filter>ソース ファイル</Filter>
     </None>
-    <None Include="..\..\package\CardReader_ITE.ini">
+    <None Include="..\..\package\CardReader_ITE\CardReader_ITE.ini">
       <Filter>Package</Filter>
     </None>
   </ItemGroup>

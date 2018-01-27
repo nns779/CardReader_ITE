@@ -65,8 +65,8 @@ typedef enum _itecard_status
 	ITECARD_E_COMM_FAILED,
 } itecard_status_t;
 
-extern itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t *const path, struct itecard_shared_readerinfo *const reader, const itecard_protocol_t protocol, const bool exclusive);
-extern itecard_status_t itecard_close(struct itecard_handle *const handle, const bool reset, const bool noref);
+extern itecard_status_t itecard_open(struct itecard_handle *const handle, const wchar_t *const path, struct itecard_shared_readerinfo *const reader, const itecard_protocol_t protocol, const bool exclusive, const bool power_on);
+extern itecard_status_t itecard_close(struct itecard_handle *const handle, const bool reset, const bool noref, const bool power_off);
 extern itecard_status_t itecard_detect(struct itecard_handle *const handle, bool *const b);
 extern itecard_status_t itecard_init(struct itecard_handle *const handle);
 extern itecard_status_t itecard_transmit(struct itecard_handle *const handle, const itecard_protocol_t protocol, const uint8_t *const sendBuf, const uint32_t sendLen, uint8_t *const recvBuf, uint32_t *const recvLen);

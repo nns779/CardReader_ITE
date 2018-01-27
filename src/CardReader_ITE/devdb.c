@@ -307,8 +307,9 @@ devdb_status_t devdb_update_nolock(devdb *const db)
 		DWORD type = REG_NONE, size = sizeof(fn);
 		LSTATUS ls;
 
-		ls = RegQueryValueEx(hKey, L"FriendlyName", NULL, &type, (LPBYTE)fn, &size);
-		CloseHandle(hKey);
+		ls = RegQueryValueExW(hKey, L"FriendlyName", NULL, &type, (LPBYTE)fn, &size);
+		RegCloseKey(hKey);
+
 		if (ls != ERROR_SUCCESS) {
 			win32_err("devdb_update_nolock: RegQueryValueExW");
 		}
